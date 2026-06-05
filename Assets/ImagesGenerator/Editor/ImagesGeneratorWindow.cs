@@ -3,6 +3,8 @@ using UnityEngine;
 
 public class ImagesGeneratorWindow : EditorWindow
 {
+    private static readonly Vector2 WindowSize = new Vector2(560f, 360f);
+
     [SerializeField] private Camera captureCamera;
     [SerializeField] private GameObject truck;
     [SerializeField] private Vector3 startPosition;
@@ -15,7 +17,10 @@ public class ImagesGeneratorWindow : EditorWindow
     [MenuItem("Tools/Images Generator")]
     public static void Open()
     {
-        GetWindow<ImagesGeneratorWindow>("Images Generator");
+        ImagesGeneratorWindow window = CreateInstance<ImagesGeneratorWindow>();
+        window.titleContent = new GUIContent("Images Generator");
+        window.minSize = WindowSize;
+        window.ShowUtility();
     }
 
     private void OnGUI()
