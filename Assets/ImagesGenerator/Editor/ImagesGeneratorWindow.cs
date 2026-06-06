@@ -1,8 +1,12 @@
+using System;
+using System.Globalization;
+using System.IO;
 using UnityEditor;
 using UnityEngine;
 
 public class ImagesGeneratorWindow : EditorWindow
 {
+    private const string DefaultOutputDirectory = "ImagesGeneratorOutput";
     private static readonly Vector2 WindowSize = new Vector2(560f, 360f);
 
     [SerializeField] private Camera captureCamera;
@@ -10,6 +14,9 @@ public class ImagesGeneratorWindow : EditorWindow
     [SerializeField] private Vector3 startPosition;
     [SerializeField] private Vector3 endPosition;
     [SerializeField] private int imageCount = 10;
+    [SerializeField] private int imageWidth = 1920;
+    [SerializeField] private int imageHeight = 1080;
+    [SerializeField] private string outputDirectory = DefaultOutputDirectory;
 
     private bool hasStartPosition;
     private bool hasEndPosition;
@@ -38,6 +45,25 @@ public class ImagesGeneratorWindow : EditorWindow
 
         EditorGUILayout.Space();
         imageCount = EditorGUILayout.IntField("Number Of Images", imageCount);
+        imageWidth = EditorGUILayout.IntField("Image Width", imageWidth);
+        imageHeight = EditorGUILayout.IntField("Image Height", imageHeight);
+
+        EditorGUILayout.BeginHorizontal();
+        outputDirectory = EditorGUILayout.TextField("Output Directory", outputDirectory);
+        if (GUILayout.Button("Choose", GUILayout.Width(70)))
+        {
+            ChooseOutputDirectory();
+        }
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.Space();
+        using (new EditorGUI.DisabledScope(!CanGenerate()))
+        {
+            if (GUILayout.Button("Generate Images", GUILayout.Height(32)))
+            {
+                GenerateImages();
+            }
+        }
     }
 
     private void DrawPositionRangeFields()
@@ -87,4 +113,114 @@ public class ImagesGeneratorWindow : EditorWindow
                 MessageType.Warning);
         }
     }
+
+    private bool CanGenerate()
+    {
+        return captureCamera != null
+            && truck != null
+            && hasStartPosition
+            && hasEndPosition
+            && imageCount > 0
+            && imageWidth > 0
+            && imageHeight > 0
+            && !string.IsNullOrWhiteSpace(outputDirectory);
+    }
+
+    private void ChooseOutputDirectory()
+    {
+        string selectedDirectory = EditorUtility.OpenFolderPanel(
+            "Select Images Output Directory",
+            outputDirectory,
+            string.Empty);
+
+        if (!string.IsNullOrEmpty(selectedDirectory))
+        {
+            outputDirectory = selectedDirectory;
+        }
+    }
+
+    private void GenerateImages()
+    {
+        if (!CanGenerate())
+        {
+            EditorUtility.DisplayDialog("Invalid Configuration", "Complete all image generator settings first.", "OK");
+            return;
+        }
+
+        string runTimestamp = DateTime.Now.ToString("dd_MM_yyyy_HH_mm", CultureInfo.InvariantCulture);
+        string runDirectoryName = string.Format(
+            CultureInfo.InvariantCulture,
+            "{0}_{1}_{2}",
+            captureCamera.name,
+            truck.name,
+            runTimestamp);
+        string runDirectory = Path.Combine(outputDirectory, runDirectoryName);
+        string imagesDirectory = Path.Combine(runDirectory, "images");
+
+        Directory.CreateDirectory(imagesDirectory);
+
+        RenderTexture originalTargetTexture = captureCamera.targetTexture;
+        RenderTexture renderTexture = null;
+        Texture2D image = null;
+
+        try
+        {
+            renderTexture = new RenderTexture(imageWidth, imageHeight, 24, RenderTextureFormat.ARGB32);
+            image = new Texture2D(imageWidth, imageHeight, TextureFormat.RGB24, false);
+            captureCamera.targetTexture = renderTexture;
+
+            for (int index = 0; index < imageCount; index++)
+            {
+                float normalizedPosition = imageCount == 1 ? 0f : index / (float)(imageCount - 1);
+                truck.transform.position = Vector3.Lerp(startPosition, endPosition, normalizedPosition);
+
+                string filename = string.Format(CultureInfo.InvariantCulture, "image_{0:D6}.png", index + 1);
+                string imagePath = Path.Combine(imagesDirectory, filename);
+
+                CaptureImage(renderTexture, image, imagePath);
+
+                EditorUtility.DisplayProgressBar(
+                    "Generating Images",
+                    string.Format(CultureInfo.InvariantCulture, "Capturing image {0} of {1}", index + 1, imageCount),
+                    (index + 1) / (float)imageCount);
+            }
+
+            Debug.Log("Generated images at: " + runDirectory);
+            EditorUtility.RevealInFinder(runDirectory);
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception);
+            EditorUtility.DisplayDialog("Image Generation Failed", exception.Message, "OK");
+        }
+        finally
+        {
+            captureCamera.targetTexture = originalTargetTexture;
+            RenderTexture.active = null;
+            EditorUtility.ClearProgressBar();
+
+            if (renderTexture != null)
+            {
+                renderTexture.Release();
+                DestroyImmediate(renderTexture);
+            }
+
+            if (image != null)
+            {
+                DestroyImmediate(image);
+            }
+
+            SceneView.RepaintAll();
+        }
+    }
+
+    private void CaptureImage(RenderTexture renderTexture, Texture2D image, string imagePath)
+    {
+        captureCamera.Render();
+        RenderTexture.active = renderTexture;
+        image.ReadPixels(new Rect(0, 0, imageWidth, imageHeight), 0, 0);
+        image.Apply();
+        File.WriteAllBytes(imagePath, image.EncodeToPNG());
+    }
+
 }

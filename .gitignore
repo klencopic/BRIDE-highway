@@ -50,6 +50,9 @@ Thumbs.db
 *.unitypackage
 *.app
 
+# Images Generator output
+/ImagesGeneratorOutput/
+
 # Addressables
 /[Aa]ssets/[Aa]ddressable[Aa]ssets[Dd]ata/*/*.bin*
 
