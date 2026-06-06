@@ -160,6 +160,8 @@ public class ImagesGeneratorWindow : EditorWindow
 
         Directory.CreateDirectory(imagesDirectory);
 
+        Vector3 originalTruckPosition = truck.transform.position;
+        Quaternion originalTruckRotation = truck.transform.rotation;
         RenderTexture originalTargetTexture = captureCamera.targetTexture;
         RenderTexture renderTexture = null;
         Texture2D image = null;
@@ -202,6 +204,7 @@ public class ImagesGeneratorWindow : EditorWindow
         }
         finally
         {
+            truck.transform.SetPositionAndRotation(originalTruckPosition, originalTruckRotation);
             captureCamera.targetTexture = originalTargetTexture;
             RenderTexture.active = null;
             EditorUtility.ClearProgressBar();
