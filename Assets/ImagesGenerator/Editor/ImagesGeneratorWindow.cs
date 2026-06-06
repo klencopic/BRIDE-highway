@@ -156,6 +156,7 @@ public class ImagesGeneratorWindow : EditorWindow
             runTimestamp);
         string runDirectory = Path.Combine(GetAbsoluteOutputDirectory(), runDirectoryName);
         string imagesDirectory = Path.Combine(runDirectory, "images");
+        string metadataPath = Path.Combine(runDirectory, "metadata.jsonl");
 
         Directory.CreateDirectory(imagesDirectory);
 
@@ -165,24 +166,30 @@ public class ImagesGeneratorWindow : EditorWindow
 
         try
         {
+            WriteRunConfiguration(runDirectory, runTimestamp);
+
             renderTexture = new RenderTexture(imageWidth, imageHeight, 24, RenderTextureFormat.ARGB32);
             image = new Texture2D(imageWidth, imageHeight, TextureFormat.RGB24, false);
             captureCamera.targetTexture = renderTexture;
 
-            for (int index = 0; index < imageCount; index++)
+            using (StreamWriter metadataWriter = new StreamWriter(metadataPath, false))
             {
-                float normalizedPosition = imageCount == 1 ? 0f : index / (float)(imageCount - 1);
-                truck.transform.position = Vector3.Lerp(startPosition, endPosition, normalizedPosition);
+                for (int index = 0; index < imageCount; index++)
+                {
+                    float normalizedPosition = imageCount == 1 ? 0f : index / (float)(imageCount - 1);
+                    truck.transform.position = Vector3.Lerp(startPosition, endPosition, normalizedPosition);
 
-                string filename = string.Format(CultureInfo.InvariantCulture, "image_{0:D6}.png", index + 1);
-                string imagePath = Path.Combine(imagesDirectory, filename);
+                    string filename = string.Format(CultureInfo.InvariantCulture, "image_{0:D6}.png", index + 1);
+                    string imagePath = Path.Combine(imagesDirectory, filename);
 
-                CaptureImage(renderTexture, image, imagePath);
+                    CaptureImage(renderTexture, image, imagePath);
+                    metadataWriter.WriteLine(CreateImageMetadata(index + 1, filename, normalizedPosition));
 
-                EditorUtility.DisplayProgressBar(
-                    "Generating Images",
-                    string.Format(CultureInfo.InvariantCulture, "Capturing image {0} of {1}", index + 1, imageCount),
-                    (index + 1) / (float)imageCount);
+                    EditorUtility.DisplayProgressBar(
+                        "Generating Images",
+                        string.Format(CultureInfo.InvariantCulture, "Capturing image {0} of {1}", index + 1, imageCount),
+                        (index + 1) / (float)imageCount);
+                }
             }
 
             Debug.Log("Generated images at: " + runDirectory);
@@ -223,6 +230,49 @@ public class ImagesGeneratorWindow : EditorWindow
         File.WriteAllBytes(imagePath, image.EncodeToPNG());
     }
 
+    private void WriteRunConfiguration(string runDirectory, string runTimestamp)
+    {
+        RunConfiguration configuration = new RunConfiguration
+        {
+            generatedAt = runTimestamp,
+            scene = captureCamera.gameObject.scene.path,
+            camera = captureCamera.name,
+            truck = truck.name,
+            imageCount = imageCount,
+            imageWidth = imageWidth,
+            imageHeight = imageHeight,
+            startPosition = SerializableVector3.From(startPosition),
+            endPosition = SerializableVector3.From(endPosition),
+            positionReference = "Selected truck GameObject Transform pivot"
+        };
+
+        File.WriteAllText(
+            Path.Combine(runDirectory, "run_config.json"),
+            JsonUtility.ToJson(configuration, true));
+    }
+
+    private string CreateImageMetadata(int imageIndex, string filename, float normalizedPosition)
+    {
+        ImageMetadata metadata = new ImageMetadata
+        {
+            imageFilename = filename,
+            imageIndex = imageIndex,
+            camera = captureCamera.name,
+            truck = truck.name,
+            truckPosition = SerializableVector3.From(truck.transform.position),
+            truckRotationEuler = SerializableVector3.From(truck.transform.eulerAngles),
+            normalizedPositionAlongRange = normalizedPosition,
+            cameraPosition = SerializableVector3.From(captureCamera.transform.position),
+            cameraRotationEuler = SerializableVector3.From(captureCamera.transform.eulerAngles),
+            imageWidth = imageWidth,
+            imageHeight = imageHeight,
+            generatedAt = DateTime.Now.ToString("o", CultureInfo.InvariantCulture),
+            positionReference = "Selected truck GameObject Transform pivot"
+        };
+
+        return JsonUtility.ToJson(metadata);
+    }
+
     private string GetAbsoluteOutputDirectory()
     {
         if (Path.IsPathRooted(outputDirectory))
@@ -241,5 +291,56 @@ public class ImagesGeneratorWindow : EditorWindow
         }
 
         return value.Replace(' ', '_');
+    }
+
+    [Serializable]
+    private class RunConfiguration
+    {
+        public string generatedAt;
+        public string scene;
+        public string camera;
+        public string truck;
+        public int imageCount;
+        public int imageWidth;
+        public int imageHeight;
+        public SerializableVector3 startPosition;
+        public SerializableVector3 endPosition;
+        public string positionReference;
+    }
+
+    [Serializable]
+    private class ImageMetadata
+    {
+        public string imageFilename;
+        public int imageIndex;
+        public string camera;
+        public string truck;
+        public SerializableVector3 truckPosition;
+        public SerializableVector3 truckRotationEuler;
+        public float normalizedPositionAlongRange;
+        public SerializableVector3 cameraPosition;
+        public SerializableVector3 cameraRotationEuler;
+        public int imageWidth;
+        public int imageHeight;
+        public string generatedAt;
+        public string positionReference;
+    }
+
+    [Serializable]
+    private struct SerializableVector3
+    {
+        public float x;
+        public float y;
+        public float z;
+
+        public static SerializableVector3 From(Vector3 value)
+        {
+            return new SerializableVector3
+            {
+                x = value.x,
+                y = value.y,
+                z = value.z
+            };
+        }
     }
 }
