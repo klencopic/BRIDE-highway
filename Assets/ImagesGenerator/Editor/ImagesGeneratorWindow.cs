@@ -130,7 +130,7 @@ public class ImagesGeneratorWindow : EditorWindow
     {
         string selectedDirectory = EditorUtility.OpenFolderPanel(
             "Select Images Output Directory",
-            outputDirectory,
+            GetAbsoluteOutputDirectory(),
             string.Empty);
 
         if (!string.IsNullOrEmpty(selectedDirectory))
@@ -151,10 +151,10 @@ public class ImagesGeneratorWindow : EditorWindow
         string runDirectoryName = string.Format(
             CultureInfo.InvariantCulture,
             "{0}_{1}_{2}",
-            captureCamera.name,
-            truck.name,
+            SanitizePathPart(captureCamera.name),
+            SanitizePathPart(truck.name),
             runTimestamp);
-        string runDirectory = Path.Combine(outputDirectory, runDirectoryName);
+        string runDirectory = Path.Combine(GetAbsoluteOutputDirectory(), runDirectoryName);
         string imagesDirectory = Path.Combine(runDirectory, "images");
 
         Directory.CreateDirectory(imagesDirectory);
@@ -223,4 +223,23 @@ public class ImagesGeneratorWindow : EditorWindow
         File.WriteAllBytes(imagePath, image.EncodeToPNG());
     }
 
+    private string GetAbsoluteOutputDirectory()
+    {
+        if (Path.IsPathRooted(outputDirectory))
+        {
+            return outputDirectory;
+        }
+
+        return Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), outputDirectory));
+    }
+
+    private static string SanitizePathPart(string value)
+    {
+        foreach (char invalidCharacter in Path.GetInvalidFileNameChars())
+        {
+            value = value.Replace(invalidCharacter, '_');
+        }
+
+        return value.Replace(' ', '_');
+    }
 }
