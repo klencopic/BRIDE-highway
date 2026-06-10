@@ -52,6 +52,7 @@ public class AxleMarkerCreatorWindow : EditorWindow
 
         AutoAssignRoadObject();
         DrawRoadStatus();
+        DrawDetectedAxles();
 
         EditorGUILayout.Space(12f);
         using (new EditorGUI.DisabledScope(truckRoot == null))
@@ -99,6 +100,36 @@ public class AxleMarkerCreatorWindow : EditorWindow
             : "Road: " + roadObject.name + " collider will be used.";
 
         EditorGUILayout.LabelField(roadStatus, instructionStyle);
+    }
+
+    private void DrawDetectedAxles()
+    {
+        if (truckRoot == null)
+        {
+            return;
+        }
+
+        Transform[] steeringWheels = FindSteeringWheelPair();
+        Transform[] axles = FindAxleTransforms();
+
+        EditorGUILayout.Space(8f);
+        EditorGUILayout.LabelField("Detected Axles", sectionStyle);
+        EditorGUILayout.LabelField(
+            steeringWheels.Length == 2
+                ? "Front steering pair: " + steeringWheels[0].name + " / " + steeringWheels[1].name
+                : "Front steering pair: not found",
+            instructionStyle);
+
+        if (axles.Length == 0)
+        {
+            EditorGUILayout.LabelField("Rear axles: none found", instructionStyle);
+            return;
+        }
+
+        foreach (Transform axle in axles)
+        {
+            EditorGUILayout.LabelField("Rear axle: " + axle.name, instructionStyle);
+        }
     }
 
     private void EnsureStyles()
@@ -156,5 +187,63 @@ public class AxleMarkerCreatorWindow : EditorWindow
                 return;
             }
         }
+    }
+
+    private Transform[] FindAxleTransforms()
+    {
+        Transform[] allTransforms = truckRoot.GetComponentsInChildren<Transform>(true);
+        System.Collections.Generic.List<Transform> axles = new System.Collections.Generic.List<Transform>();
+        Transform existingReferencePoints = truckRoot.Find(ReferencePointsContainerName);
+
+        foreach (Transform child in allTransforms)
+        {
+            if (child == truckRoot || (existingReferencePoints != null && child.IsChildOf(existingReferencePoints)))
+            {
+                continue;
+            }
+
+            string lowerName = child.name.ToLowerInvariant();
+            if (lowerName.Contains("axle") && !lowerName.Contains("steering"))
+            {
+                axles.Add(child);
+            }
+        }
+
+        axles.Sort((first, second) =>
+            truckRoot.InverseTransformPoint(first.position).z.CompareTo(truckRoot.InverseTransformPoint(second.position).z));
+
+        return axles.ToArray();
+    }
+
+    private Transform[] FindSteeringWheelPair()
+    {
+        Transform[] allTransforms = truckRoot.GetComponentsInChildren<Transform>(true);
+        Transform leftSteer = null;
+        Transform rightSteer = null;
+
+        foreach (Transform child in allTransforms)
+        {
+            string normalizedName = child.name.ToLowerInvariant().Replace("_", string.Empty).Replace(" ", string.Empty);
+            if (!normalizedName.Contains("steer"))
+            {
+                continue;
+            }
+
+            if (normalizedName.EndsWith("l") || normalizedName.Contains("steerl"))
+            {
+                leftSteer = child;
+            }
+            else if (normalizedName.EndsWith("r") || normalizedName.Contains("steerr"))
+            {
+                rightSteer = child;
+            }
+        }
+
+        if (leftSteer != null && rightSteer != null)
+        {
+            return new[] { leftSteer, rightSteer };
+        }
+
+        return new Transform[0];
     }
 }
