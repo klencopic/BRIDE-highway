@@ -3,6 +3,7 @@ using UnityEngine;
 
 public class AxleMarkerCreatorWindow : EditorWindow
 {
+    private const string ReferencePointsContainerName = "ReferencePoints";
     private const string DefaultRoadObjectName = "colmesh_ground";
     private static readonly Vector2 WindowSize = new Vector2(520f, 280f);
     private const float FieldLabelWidth = 160f;
@@ -53,15 +54,42 @@ public class AxleMarkerCreatorWindow : EditorWindow
         DrawRoadStatus();
 
         EditorGUILayout.Space(12f);
-        using (new EditorGUI.DisabledScope(true))
+        using (new EditorGUI.DisabledScope(truckRoot == null))
         {
-            GUILayout.Button("Generate Axle Markers", buttonStyle, GUILayout.Height(42));
+            if (GUILayout.Button("Generate Axle Markers", buttonStyle, GUILayout.Height(42)))
+            {
+                CreateReferencePointsContainer();
+            }
         }
 
         if (truckRoot == null)
         {
             EditorGUILayout.LabelField("Set Truck Root before generating markers.", instructionStyle);
         }
+    }
+
+    private void CreateReferencePointsContainer()
+    {
+        Transform referencePoints = GetOrCreateReferencePoints();
+        Selection.activeObject = referencePoints.gameObject;
+        EditorGUIUtility.PingObject(referencePoints);
+    }
+
+    private Transform GetOrCreateReferencePoints()
+    {
+        Transform existing = truckRoot.Find(ReferencePointsContainerName);
+        if (existing != null)
+        {
+            return existing;
+        }
+
+        GameObject container = new GameObject(ReferencePointsContainerName);
+        Undo.RegisterCreatedObjectUndo(container, "Create Reference Points Container");
+        container.transform.SetParent(truckRoot, false);
+        container.transform.localPosition = Vector3.zero;
+        container.transform.localRotation = Quaternion.identity;
+        container.transform.localScale = Vector3.one;
+        return container.transform;
     }
 
     private void DrawRoadStatus()
