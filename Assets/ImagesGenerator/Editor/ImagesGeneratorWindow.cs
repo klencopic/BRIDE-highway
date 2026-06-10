@@ -21,7 +21,7 @@ public class ImagesGeneratorWindow : EditorWindow
     private bool hasStartPosition;
     private bool hasEndPosition;
 
-    [MenuItem("Tools/Images Generator")]
+    [MenuItem("Tools/Open Images Generator")]
     public static void Open()
     {
         ImagesGeneratorWindow window = CreateInstance<ImagesGeneratorWindow>();

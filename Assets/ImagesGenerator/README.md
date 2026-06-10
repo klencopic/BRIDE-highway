@@ -6,7 +6,7 @@ known positions.
 Open it from:
 
 ```text
-Tools > Images Generator
+Tools > Open Images Generator
 ```
 
 ## Usage
