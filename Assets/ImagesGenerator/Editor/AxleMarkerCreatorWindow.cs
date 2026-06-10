@@ -3,10 +3,12 @@ using UnityEngine;
 
 public class AxleMarkerCreatorWindow : EditorWindow
 {
+    private const string DefaultRoadObjectName = "colmesh_ground";
     private static readonly Vector2 WindowSize = new Vector2(520f, 280f);
     private const float FieldLabelWidth = 160f;
 
     [SerializeField] private Transform truckRoot;
+    [SerializeField] private GameObject roadObject;
 
     private GUIStyle titleStyle;
     private GUIStyle instructionStyle;
@@ -28,6 +30,8 @@ public class AxleMarkerCreatorWindow : EditorWindow
         {
             truckRoot = Selection.activeTransform;
         }
+
+        AutoAssignRoadObject();
     }
 
     private void OnGUI()
@@ -45,6 +49,9 @@ public class AxleMarkerCreatorWindow : EditorWindow
         truckRoot = (Transform)EditorGUILayout.ObjectField("Truck Root", truckRoot, typeof(Transform), true);
         EditorGUIUtility.labelWidth = 0f;
 
+        AutoAssignRoadObject();
+        DrawRoadStatus();
+
         EditorGUILayout.Space(12f);
         using (new EditorGUI.DisabledScope(true))
         {
@@ -55,6 +62,15 @@ public class AxleMarkerCreatorWindow : EditorWindow
         {
             EditorGUILayout.LabelField("Set Truck Root before generating markers.", instructionStyle);
         }
+    }
+
+    private void DrawRoadStatus()
+    {
+        string roadStatus = roadObject == null
+            ? "Road: colmesh_ground not found. The tool will use bounds as fallback."
+            : "Road: " + roadObject.name + " collider will be used.";
+
+        EditorGUILayout.LabelField(roadStatus, instructionStyle);
     }
 
     private void EnsureStyles()
@@ -86,5 +102,31 @@ public class AxleMarkerCreatorWindow : EditorWindow
             fontSize = 15,
             fontStyle = FontStyle.Bold
         };
+    }
+
+    private void AutoAssignRoadObject()
+    {
+        if (roadObject != null)
+        {
+            return;
+        }
+
+        GameObject exactMatch = GameObject.Find(DefaultRoadObjectName);
+        if (exactMatch != null && exactMatch.GetComponentInChildren<Collider>() != null)
+        {
+            roadObject = exactMatch;
+            return;
+        }
+
+        foreach (GameObject sceneObject in Resources.FindObjectsOfTypeAll<GameObject>())
+        {
+            if (sceneObject.name == DefaultRoadObjectName
+                && sceneObject.scene.IsValid()
+                && sceneObject.GetComponentInChildren<Collider>() != null)
+            {
+                roadObject = sceneObject;
+                return;
+            }
+        }
     }
 }
