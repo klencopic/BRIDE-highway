@@ -38,6 +38,9 @@ ImagesGeneratorOutput/
 
 ## Position Reference
 
-The current truck position is the selected truck object's `Transform.position`.
-This is the object's Unity world position/pivot, not necessarily the truck's
-front plate, axle, or center.
+Generated metadata includes axle ground markers from the selected truck's
+`ReferencePoints` child. `FrontAxleGroundCenter` is the primary truck reference
+point when present.
+
+The selected truck object's `Transform.position` is still written as
+`truckPosition`, but it is only the Unity world position/pivot of that object.

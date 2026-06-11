@@ -9,7 +9,7 @@ public class ImagesGeneratorWindow : EditorWindow
 {
     private const string DefaultOutputDirectory = "ImagesGeneratorOutput";
     private const string CoordinateReferenceFrame = "Camera local coordinate frame";
-    private const string PositionReference = "Selected truck GameObject Transform pivot";
+    private const string PositionReference = "Axle ground markers under Truck/ReferencePoints; FrontAxleGroundCenter is the primary truck reference point";
     private const string ReferencePointsContainerName = "ReferencePoints";
     private static readonly Vector2 WindowSize = new Vector2(560f, 360f);
 
