@@ -10,6 +10,7 @@ public class ImagesGeneratorWindow : EditorWindow
     private const string DefaultOutputDirectory = "ImagesGeneratorOutput";
     private const string CoordinateReferenceFrame = "Camera local coordinate frame";
     private const string PositionReference = "Selected truck GameObject Transform pivot";
+    private const string ReferencePointsContainerName = "ReferencePoints";
     private static readonly Vector2 WindowSize = new Vector2(560f, 360f);
 
     [SerializeField] private Camera captureCamera;
@@ -318,6 +319,28 @@ public class ImagesGeneratorWindow : EditorWindow
         return value.Replace(' ', '_');
     }
 
+    private AxleMarkerMetadata[] CollectAxleMarkerMetadata()
+    {
+        Transform referencePoints = truck.transform.Find(ReferencePointsContainerName);
+        if (referencePoints == null)
+        {
+            return new AxleMarkerMetadata[0];
+        }
+
+        List<AxleMarkerMetadata> axleMarkers = new List<AxleMarkerMetadata>();
+        foreach (Transform marker in referencePoints)
+        {
+            axleMarkers.Add(new AxleMarkerMetadata
+            {
+                name = marker.name,
+                worldPosition = SerializableVector3.From(marker.position)
+            });
+        }
+
+        axleMarkers.Sort((first, second) => string.Compare(first.name, second.name, StringComparison.Ordinal));
+        return axleMarkers.ToArray();
+    }
+
     [Serializable]
     private class MetadataFile
     {
@@ -359,6 +382,13 @@ public class ImagesGeneratorWindow : EditorWindow
         public string generatedAt;
         public string positionReference;
         public string coordinateReferenceFrame;
+    }
+
+    [Serializable]
+    private class AxleMarkerMetadata
+    {
+        public string name;
+        public SerializableVector3 worldPosition;
     }
 
     [Serializable]
