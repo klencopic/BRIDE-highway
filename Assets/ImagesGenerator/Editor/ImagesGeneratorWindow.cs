@@ -293,7 +293,8 @@ public class ImagesGeneratorWindow : EditorWindow
             imageHeight = imageHeight,
             generatedAt = DateTime.Now.ToString("o", CultureInfo.InvariantCulture),
             positionReference = PositionReference,
-            coordinateReferenceFrame = CoordinateReferenceFrame
+            coordinateReferenceFrame = CoordinateReferenceFrame,
+            axleMarkers = CollectAxleMarkerMetadata()
         };
 
         return metadata;
@@ -333,7 +334,8 @@ public class ImagesGeneratorWindow : EditorWindow
             axleMarkers.Add(new AxleMarkerMetadata
             {
                 name = marker.name,
-                worldPosition = SerializableVector3.From(marker.position)
+                worldPosition = SerializableVector3.From(marker.position),
+                cameraFramePosition = SerializableVector3.From(captureCamera.transform.InverseTransformPoint(marker.position))
             });
         }
 
@@ -382,6 +384,7 @@ public class ImagesGeneratorWindow : EditorWindow
         public string generatedAt;
         public string positionReference;
         public string coordinateReferenceFrame;
+        public AxleMarkerMetadata[] axleMarkers;
     }
 
     [Serializable]
@@ -389,6 +392,7 @@ public class ImagesGeneratorWindow : EditorWindow
     {
         public string name;
         public SerializableVector3 worldPosition;
+        public SerializableVector3 cameraFramePosition;
     }
 
     [Serializable]
