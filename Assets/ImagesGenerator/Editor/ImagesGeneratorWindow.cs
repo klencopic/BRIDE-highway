@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using UnityEditor;
@@ -156,7 +157,7 @@ public class ImagesGeneratorWindow : EditorWindow
             runTimestamp);
         string runDirectory = Path.Combine(GetAbsoluteOutputDirectory(), runDirectoryName);
         string imagesDirectory = Path.Combine(runDirectory, "images");
-        string metadataPath = Path.Combine(runDirectory, "metadata.jsonl");
+        string metadataPath = Path.Combine(runDirectory, "metadata.json");
 
         Directory.CreateDirectory(imagesDirectory);
 
@@ -174,25 +175,25 @@ public class ImagesGeneratorWindow : EditorWindow
             image = new Texture2D(imageWidth, imageHeight, TextureFormat.RGB24, false);
             captureCamera.targetTexture = renderTexture;
 
-            using (StreamWriter metadataWriter = new StreamWriter(metadataPath, false))
+            List<ImageMetadata> metadataImages = new List<ImageMetadata>(imageCount);
+            for (int index = 0; index < imageCount; index++)
             {
-                for (int index = 0; index < imageCount; index++)
-                {
-                    float normalizedPosition = imageCount == 1 ? 0f : index / (float)(imageCount - 1);
-                    truck.transform.position = Vector3.Lerp(startPosition, endPosition, normalizedPosition);
+                float normalizedPosition = imageCount == 1 ? 0f : index / (float)(imageCount - 1);
+                truck.transform.position = Vector3.Lerp(startPosition, endPosition, normalizedPosition);
 
-                    string filename = string.Format(CultureInfo.InvariantCulture, "image_{0:D6}.png", index + 1);
-                    string imagePath = Path.Combine(imagesDirectory, filename);
+                string filename = string.Format(CultureInfo.InvariantCulture, "image_{0:D6}.png", index + 1);
+                string imagePath = Path.Combine(imagesDirectory, filename);
 
-                    CaptureImage(renderTexture, image, imagePath);
-                    metadataWriter.WriteLine(CreateImageMetadata(index + 1, filename, normalizedPosition));
+                CaptureImage(renderTexture, image, imagePath);
+                metadataImages.Add(CreateImageMetadata(index + 1, filename, normalizedPosition));
 
-                    EditorUtility.DisplayProgressBar(
-                        "Generating Images",
-                        string.Format(CultureInfo.InvariantCulture, "Capturing image {0} of {1}", index + 1, imageCount),
-                        (index + 1) / (float)imageCount);
-                }
+                EditorUtility.DisplayProgressBar(
+                    "Generating Images",
+                    string.Format(CultureInfo.InvariantCulture, "Capturing image {0} of {1}", index + 1, imageCount),
+                    (index + 1) / (float)imageCount);
             }
+
+            WriteMetadata(metadataPath, runTimestamp, metadataImages);
 
             Debug.Log("Generated images at: " + runDirectory);
             EditorUtility.RevealInFinder(runDirectory);
@@ -235,7 +236,27 @@ public class ImagesGeneratorWindow : EditorWindow
 
     private void WriteRunConfiguration(string runDirectory, string runTimestamp)
     {
-        RunConfiguration configuration = new RunConfiguration
+        RunConfiguration configuration = CreateRunConfiguration(runTimestamp);
+
+        File.WriteAllText(
+            Path.Combine(runDirectory, "run_config.json"),
+            JsonUtility.ToJson(configuration, true));
+    }
+
+    private void WriteMetadata(string metadataPath, string runTimestamp, List<ImageMetadata> metadataImages)
+    {
+        MetadataFile metadata = new MetadataFile
+        {
+            run = CreateRunConfiguration(runTimestamp),
+            images = metadataImages.ToArray()
+        };
+
+        File.WriteAllText(metadataPath, JsonUtility.ToJson(metadata, true));
+    }
+
+    private RunConfiguration CreateRunConfiguration(string runTimestamp)
+    {
+        return new RunConfiguration
         {
             generatedAt = runTimestamp,
             scene = captureCamera.gameObject.scene.path,
@@ -248,13 +269,9 @@ public class ImagesGeneratorWindow : EditorWindow
             endPosition = SerializableVector3.From(endPosition),
             positionReference = "Selected truck GameObject Transform pivot"
         };
-
-        File.WriteAllText(
-            Path.Combine(runDirectory, "run_config.json"),
-            JsonUtility.ToJson(configuration, true));
     }
 
-    private string CreateImageMetadata(int imageIndex, string filename, float normalizedPosition)
+    private ImageMetadata CreateImageMetadata(int imageIndex, string filename, float normalizedPosition)
     {
         ImageMetadata metadata = new ImageMetadata
         {
@@ -273,7 +290,7 @@ public class ImagesGeneratorWindow : EditorWindow
             positionReference = "Selected truck GameObject Transform pivot"
         };
 
-        return JsonUtility.ToJson(metadata);
+        return metadata;
     }
 
     private string GetAbsoluteOutputDirectory()
@@ -294,6 +311,13 @@ public class ImagesGeneratorWindow : EditorWindow
         }
 
         return value.Replace(' ', '_');
+    }
+
+    [Serializable]
+    private class MetadataFile
+    {
+        public RunConfiguration run;
+        public ImageMetadata[] images;
     }
 
     [Serializable]

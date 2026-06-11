@@ -32,7 +32,7 @@ ImagesGeneratorOutput/
   <camera>_<truck>_<dd_MM_yyyy_HH_mm>/
     images/
       image_000001.png
-    metadata.jsonl
+    metadata.json
     run_config.json
 ```
 
