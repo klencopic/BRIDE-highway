@@ -8,6 +8,8 @@ using UnityEngine;
 public class ImagesGeneratorWindow : EditorWindow
 {
     private const string DefaultOutputDirectory = "ImagesGeneratorOutput";
+    private const string CoordinateReferenceFrame = "Camera local coordinate frame";
+    private const string PositionReference = "Selected truck GameObject Transform pivot";
     private static readonly Vector2 WindowSize = new Vector2(560f, 360f);
 
     [SerializeField] private Camera captureCamera;
@@ -267,7 +269,8 @@ public class ImagesGeneratorWindow : EditorWindow
             imageHeight = imageHeight,
             startPosition = SerializableVector3.From(startPosition),
             endPosition = SerializableVector3.From(endPosition),
-            positionReference = "Selected truck GameObject Transform pivot"
+            positionReference = PositionReference,
+            coordinateReferenceFrame = CoordinateReferenceFrame
         };
     }
 
@@ -280,6 +283,7 @@ public class ImagesGeneratorWindow : EditorWindow
             camera = captureCamera.name,
             truck = truck.name,
             truckPosition = SerializableVector3.From(truck.transform.position),
+            truckPositionCameraFrame = SerializableVector3.From(captureCamera.transform.InverseTransformPoint(truck.transform.position)),
             truckRotationEuler = SerializableVector3.From(truck.transform.eulerAngles),
             normalizedPositionAlongRange = normalizedPosition,
             cameraPosition = SerializableVector3.From(captureCamera.transform.position),
@@ -287,7 +291,8 @@ public class ImagesGeneratorWindow : EditorWindow
             imageWidth = imageWidth,
             imageHeight = imageHeight,
             generatedAt = DateTime.Now.ToString("o", CultureInfo.InvariantCulture),
-            positionReference = "Selected truck GameObject Transform pivot"
+            positionReference = PositionReference,
+            coordinateReferenceFrame = CoordinateReferenceFrame
         };
 
         return metadata;
@@ -333,6 +338,7 @@ public class ImagesGeneratorWindow : EditorWindow
         public SerializableVector3 startPosition;
         public SerializableVector3 endPosition;
         public string positionReference;
+        public string coordinateReferenceFrame;
     }
 
     [Serializable]
@@ -343,6 +349,7 @@ public class ImagesGeneratorWindow : EditorWindow
         public string camera;
         public string truck;
         public SerializableVector3 truckPosition;
+        public SerializableVector3 truckPositionCameraFrame;
         public SerializableVector3 truckRotationEuler;
         public float normalizedPositionAlongRange;
         public SerializableVector3 cameraPosition;
@@ -351,6 +358,7 @@ public class ImagesGeneratorWindow : EditorWindow
         public int imageHeight;
         public string generatedAt;
         public string positionReference;
+        public string coordinateReferenceFrame;
     }
 
     [Serializable]
