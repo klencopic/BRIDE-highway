@@ -61,7 +61,7 @@ public class AxleMarkerCreatorWindow : EditorWindow
         {
             if (GUILayout.Button("Generate Axle Markers", buttonStyle, GUILayout.Height(42)))
             {
-                CreateReferencePointsContainer();
+                CreateMarkersForAllAxles();
             }
         }
 
@@ -71,11 +71,64 @@ public class AxleMarkerCreatorWindow : EditorWindow
         }
     }
 
-    private void CreateReferencePointsContainer()
+    private void CreateMarkersForAllAxles()
     {
+        Transform[] axles = FindAxleTransforms();
+        Transform[] steeringWheels = FindSteeringWheelPair();
+        if (axles.Length == 0 && steeringWheels.Length == 0)
+        {
+            EditorUtility.DisplayDialog(
+                "No Axles Found",
+                "No child transforms with 'Axle' in the name or steering wheel pair were found under the selected truck root.",
+                "OK");
+            return;
+        }
+
         Transform referencePoints = GetOrCreateReferencePoints();
-        Selection.activeObject = referencePoints.gameObject;
-        EditorGUIUtility.PingObject(referencePoints);
+        Undo.IncrementCurrentGroup();
+        int undoGroup = Undo.GetCurrentGroup();
+        Undo.SetCurrentGroupName("Create Axle Ground Markers");
+
+        Transform lastMarker = null;
+        if (steeringWheels.Length == 2)
+        {
+            Vector3 markerPosition = CalculateWheelMarkerPosition(steeringWheels[0], steeringWheels[1]);
+            lastMarker = CreateOrUpdateMarker(referencePoints, "FrontAxleGroundCenter", markerPosition);
+        }
+
+        foreach (Transform axle in axles)
+        {
+            string detectedMarkerName = SanitizeMarkerName(axle.name) + "GroundCenter";
+            Vector3 markerPosition = CalculateAxleMarkerPosition(axle);
+            lastMarker = CreateOrUpdateMarker(referencePoints, detectedMarkerName, markerPosition);
+        }
+
+        Undo.CollapseUndoOperations(undoGroup);
+
+        if (lastMarker != null)
+        {
+            Selection.activeObject = lastMarker.gameObject;
+            EditorGUIUtility.PingObject(lastMarker);
+        }
+    }
+
+    private Transform CreateOrUpdateMarker(Transform referencePoints, string newMarkerName, Vector3 markerPosition)
+    {
+        Transform existingMarker = referencePoints.Find(newMarkerName);
+        if (existingMarker != null)
+        {
+            Undo.RecordObject(existingMarker, "Update Axle Ground Marker");
+            existingMarker.position = markerPosition;
+            existingMarker.rotation = truckRoot.rotation;
+            return existingMarker;
+        }
+
+        GameObject marker = new GameObject(newMarkerName);
+        Undo.RegisterCreatedObjectUndo(marker, "Create Axle Ground Marker");
+        marker.transform.SetParent(referencePoints, false);
+        marker.transform.position = markerPosition;
+        marker.transform.rotation = truckRoot.rotation;
+        return marker.transform;
     }
 
     private Transform GetOrCreateReferencePoints()
@@ -306,6 +359,16 @@ public class AxleMarkerCreatorWindow : EditorWindow
     private static string FormatPosition(Vector3 position)
     {
         return string.Format("({0:0.###}, {1:0.###}, {2:0.###})", position.x, position.y, position.z);
+    }
+
+    private static string SanitizeMarkerName(string value)
+    {
+        foreach (char invalidCharacter in System.IO.Path.GetInvalidFileNameChars())
+        {
+            value = value.Replace(invalidCharacter, '_');
+        }
+
+        return value.Replace(' ', '_');
     }
 
     private Transform[] FindAxleTransforms()
