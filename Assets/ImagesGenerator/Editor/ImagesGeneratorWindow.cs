@@ -21,6 +21,9 @@ public class ImagesGeneratorWindow : EditorWindow
     [SerializeField] private int imageWidth = 1920;
     [SerializeField] private int imageHeight = 1080;
     [SerializeField] private string outputDirectory = DefaultOutputDirectory;
+    [SerializeField] private TimeOfDay lightingTimeOfDay = TimeOfDay.Daytime;
+    [SerializeField] private bool fogEnabled;
+    [SerializeField] private bool rainEnabled;
 
     private bool hasStartPosition;
     private bool hasEndPosition;
@@ -52,6 +55,9 @@ public class ImagesGeneratorWindow : EditorWindow
         imageWidth = EditorGUILayout.IntField("Image Width", imageWidth);
         imageHeight = EditorGUILayout.IntField("Image Height", imageHeight);
 
+        EditorGUILayout.Space();
+        DrawLightingFields();
+
         EditorGUILayout.BeginHorizontal();
         outputDirectory = EditorGUILayout.TextField("Output Directory", outputDirectory);
         if (GUILayout.Button("Choose", GUILayout.Width(70)))
@@ -68,6 +74,14 @@ public class ImagesGeneratorWindow : EditorWindow
                 GenerateImages();
             }
         }
+    }
+
+    private void DrawLightingFields()
+    {
+        EditorGUILayout.LabelField("Lighting", EditorStyles.boldLabel);
+        lightingTimeOfDay = (TimeOfDay)EditorGUILayout.EnumPopup("Time Of Day", lightingTimeOfDay);
+        fogEnabled = EditorGUILayout.Toggle("Fog", fogEnabled);
+        rainEnabled = EditorGUILayout.Toggle("Rain", rainEnabled);
     }
 
     private void DrawPositionRangeFields()
@@ -393,6 +407,12 @@ public class ImagesGeneratorWindow : EditorWindow
         public string name;
         public SerializableVector3 worldPosition;
         public SerializableVector3 cameraFramePosition;
+    }
+
+    private enum TimeOfDay
+    {
+        Daytime,
+        Nighttime
     }
 
     [Serializable]
