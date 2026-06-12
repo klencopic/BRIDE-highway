@@ -285,7 +285,8 @@ public class ImagesGeneratorWindow : EditorWindow
             startPosition = SerializableVector3.From(startPosition),
             endPosition = SerializableVector3.From(endPosition),
             positionReference = PositionReference,
-            coordinateReferenceFrame = CoordinateReferenceFrame
+            coordinateReferenceFrame = CoordinateReferenceFrame,
+            lighting = CreateLightingMetadata()
         };
     }
 
@@ -308,10 +309,21 @@ public class ImagesGeneratorWindow : EditorWindow
             generatedAt = DateTime.Now.ToString("o", CultureInfo.InvariantCulture),
             positionReference = PositionReference,
             coordinateReferenceFrame = CoordinateReferenceFrame,
+            lighting = CreateLightingMetadata(),
             axleMarkers = CollectAxleMarkerMetadata()
         };
 
         return metadata;
+    }
+
+    private LightingMetadata CreateLightingMetadata()
+    {
+        return new LightingMetadata
+        {
+            timeOfDay = lightingTimeOfDay.ToString(),
+            fog = fogEnabled,
+            rain = rainEnabled
+        };
     }
 
     private string GetAbsoluteOutputDirectory()
@@ -378,6 +390,7 @@ public class ImagesGeneratorWindow : EditorWindow
         public SerializableVector3 endPosition;
         public string positionReference;
         public string coordinateReferenceFrame;
+        public LightingMetadata lighting;
     }
 
     [Serializable]
@@ -398,7 +411,16 @@ public class ImagesGeneratorWindow : EditorWindow
         public string generatedAt;
         public string positionReference;
         public string coordinateReferenceFrame;
+        public LightingMetadata lighting;
         public AxleMarkerMetadata[] axleMarkers;
+    }
+
+    [Serializable]
+    private class LightingMetadata
+    {
+        public string timeOfDay;
+        public bool fog;
+        public bool rain;
     }
 
     [Serializable]
