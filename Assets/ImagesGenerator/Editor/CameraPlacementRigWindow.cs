@@ -76,7 +76,10 @@ public class CameraPlacementRigWindow : EditorWindow
 
     private bool CanCreateOrUpdateRig()
     {
-        return targetCamera != null;
+        return targetCamera != null
+            && roadDirectionPointA != null
+            && roadDirectionPointB != null
+            && roadDirectionPointA != roadDirectionPointB;
     }
 
     private void DrawInputStatus()
@@ -151,9 +154,21 @@ public class CameraPlacementRigWindow : EditorWindow
         Undo.RecordObject(rig, "Update Camera Placement Rig");
         Vector3 cameraPosition = targetCamera.transform.position;
         rig.position = new Vector3(cameraPosition.x, 0f, cameraPosition.z);
-        rig.rotation = Quaternion.identity;
+        rig.rotation = CalculateHighwayRotation();
         rig.localScale = Vector3.one;
         placementRig = rig;
+    }
+
+    private Quaternion CalculateHighwayRotation()
+    {
+        Vector3 roadForward = roadDirectionPointB.position - roadDirectionPointA.position;
+        roadForward.y = 0f;
+        if (roadForward.sqrMagnitude < 0.0001f)
+        {
+            return Quaternion.identity;
+        }
+
+        return Quaternion.LookRotation(roadForward.normalized, Vector3.up);
     }
 
     private Transform GetOrCreateRig()
