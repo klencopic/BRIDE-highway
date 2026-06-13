@@ -3,6 +3,7 @@ using UnityEngine;
 
 public class CameraPlacementRigWindow : EditorWindow
 {
+    private const string DefaultRigName = "CameraPlacementRig";
     private const string DefaultGroundObjectName = "colmesh_ground";
     private const string DefaultWallsObjectName = "colmesh_walls";
     private static readonly Vector2 WindowSize = new Vector2(560f, 380f);
@@ -11,6 +12,7 @@ public class CameraPlacementRigWindow : EditorWindow
     [SerializeField] private Camera targetCamera;
     [SerializeField] private Transform roadDirectionPointA;
     [SerializeField] private Transform roadDirectionPointB;
+    [SerializeField] private Transform placementRig;
     [SerializeField] private GameObject groundObject;
     [SerializeField] private GameObject wallsObject;
 
@@ -61,6 +63,20 @@ public class CameraPlacementRigWindow : EditorWindow
 
         EditorGUILayout.Space(8f);
         DrawInputStatus();
+
+        EditorGUILayout.Space(8f);
+        using (new EditorGUI.DisabledScope(!CanCreateOrUpdateRig()))
+        {
+            if (GUILayout.Button("Use Current Camera Position", GUILayout.Height(36)))
+            {
+                UseCurrentCameraPosition();
+            }
+        }
+    }
+
+    private bool CanCreateOrUpdateRig()
+    {
+        return targetCamera != null;
     }
 
     private void DrawInputStatus()
@@ -83,6 +99,11 @@ public class CameraPlacementRigWindow : EditorWindow
         if (wallsObject == null)
         {
             EditorGUILayout.LabelField("Walls object: colmesh_walls not found", instructionStyle);
+        }
+
+        if (placementRig != null)
+        {
+            EditorGUILayout.LabelField("Placement rig: " + placementRig.name, instructionStyle);
         }
     }
 
@@ -122,5 +143,33 @@ public class CameraPlacementRigWindow : EditorWindow
         {
             wallsObject = GameObject.Find(DefaultWallsObjectName);
         }
+    }
+
+    private void UseCurrentCameraPosition()
+    {
+        Transform rig = GetOrCreateRig();
+        Undo.RecordObject(rig, "Update Camera Placement Rig");
+        Vector3 cameraPosition = targetCamera.transform.position;
+        rig.position = new Vector3(cameraPosition.x, 0f, cameraPosition.z);
+        rig.rotation = Quaternion.identity;
+        rig.localScale = Vector3.one;
+        placementRig = rig;
+    }
+
+    private Transform GetOrCreateRig()
+    {
+        if (placementRig != null)
+        {
+            return placementRig;
+        }
+
+        GameObject rigObject = GameObject.Find(DefaultRigName);
+        if (rigObject == null)
+        {
+            rigObject = new GameObject(DefaultRigName);
+            Undo.RegisterCreatedObjectUndo(rigObject, "Create Camera Placement Rig");
+        }
+
+        return rigObject.transform;
     }
 }
