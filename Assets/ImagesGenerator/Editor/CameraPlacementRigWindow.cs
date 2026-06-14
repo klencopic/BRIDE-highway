@@ -8,6 +8,7 @@ public class CameraPlacementRigWindow : EditorWindow
     private const string DefaultWallsObjectName = "colmesh_walls";
     private const float RaycastStartHeight = 10f;
     private const float RaycastDistance = 80f;
+    private const float WallRayHeight = 0.25f;
     private static readonly Vector2 WindowSize = new Vector2(560f, 380f);
     private const float FieldLabelWidth = 220f;
 
@@ -17,10 +18,14 @@ public class CameraPlacementRigWindow : EditorWindow
     [SerializeField] private Transform placementRig;
     [SerializeField] private GameObject groundObject;
     [SerializeField] private GameObject wallsObject;
+    [SerializeField] private float cameraDistanceFromRig;
+    [SerializeField] private float cameraDistanceFromGround;
+    [SerializeField] private Vector3 cameraRotationRelativeToRig;
 
     private GUIStyle titleStyle;
     private GUIStyle instructionStyle;
     private GUIStyle sectionStyle;
+    private GUIStyle labelStyle;
 
     [MenuItem("Tools/Camera Placement")]
     public static void Open()
@@ -74,6 +79,9 @@ public class CameraPlacementRigWindow : EditorWindow
                 UseCurrentCameraPosition();
             }
         }
+
+        EditorGUILayout.Space(14f);
+        DrawCameraValues();
     }
 
     private bool CanCreateOrUpdateRig()
@@ -81,7 +89,8 @@ public class CameraPlacementRigWindow : EditorWindow
         return targetCamera != null
             && roadDirectionPointA != null
             && roadDirectionPointB != null
-            && roadDirectionPointA != roadDirectionPointB;
+            && roadDirectionPointA != roadDirectionPointB
+            && wallsObject != null;
     }
 
     private void DrawInputStatus()
@@ -135,6 +144,12 @@ public class CameraPlacementRigWindow : EditorWindow
         {
             fontSize = 16
         };
+
+        labelStyle = new GUIStyle(EditorStyles.label)
+        {
+            fontSize = 14,
+            wordWrap = true
+        };
     }
 
     private void AutoAssignSceneObjects()
@@ -155,10 +170,23 @@ public class CameraPlacementRigWindow : EditorWindow
         Transform rig = GetOrCreateRig();
         Undo.RecordObject(rig, "Update Camera Placement Rig");
         Vector3 groundPointBelowCamera = GetGroundPointBelowCamera();
-        rig.position = new Vector3(groundPointBelowCamera.x, 0f, groundPointBelowCamera.z);
-        rig.rotation = CalculateHighwayRotation();
+        Quaternion rigRotation = CalculateHighwayRotation();
+
+        if (!TryFindInnerEdgeOnRight(groundPointBelowCamera, rigRotation * Vector3.right, out Vector3 innerEdgePoint))
+        {
+            EditorUtility.DisplayDialog(
+                "Inner Edge Not Found",
+                "Could not raycast from the camera line to colmesh_walls on the right side.",
+                "OK");
+            return;
+        }
+
+        rig.position = new Vector3(innerEdgePoint.x, 0f, innerEdgePoint.z);
+        rig.rotation = rigRotation;
         rig.localScale = Vector3.one;
         placementRig = rig;
+
+        SyncCameraValuesFromCurrentCamera();
     }
 
     private Quaternion CalculateHighwayRotation()
@@ -171,6 +199,40 @@ public class CameraPlacementRigWindow : EditorWindow
         }
 
         return Quaternion.LookRotation(roadForward.normalized, Vector3.up);
+    }
+
+    private void DrawCameraValues()
+    {
+        if (targetCamera == null || placementRig == null)
+        {
+            EditorGUILayout.LabelField("Use the current camera position to calculate camera values.", instructionStyle);
+            return;
+        }
+
+        EditorGUILayout.LabelField("Camera Values", sectionStyle);
+        EditorGUILayout.LabelField("Distance From Inner Highway Edge: " + cameraDistanceFromRig.ToString("0.###"), labelStyle);
+        EditorGUILayout.LabelField("Distance From Ground: " + cameraDistanceFromGround.ToString("0.###"), labelStyle);
+        EditorGUILayout.LabelField(
+            "Rotation Relative To Highway Direction: "
+            + "X " + cameraRotationRelativeToRig.x.ToString("0.##")
+            + ", Y " + cameraRotationRelativeToRig.y.ToString("0.##")
+            + ", Z " + cameraRotationRelativeToRig.z.ToString("0.##"),
+            labelStyle);
+    }
+
+    private void SyncCameraValuesFromCurrentCamera()
+    {
+        if (targetCamera == null || placementRig == null)
+        {
+            return;
+        }
+
+        Vector3 localCameraPosition = placementRig.InverseTransformPoint(targetCamera.transform.position);
+        cameraDistanceFromRig = Mathf.Abs(localCameraPosition.x);
+        cameraDistanceFromGround = localCameraPosition.y;
+
+        Quaternion relativeRotation = Quaternion.Inverse(placementRig.rotation) * targetCamera.transform.rotation;
+        cameraRotationRelativeToRig = NormalizeEuler(relativeRotation.eulerAngles);
     }
 
     private Vector3 GetGroundPointBelowCamera()
@@ -190,6 +252,30 @@ public class CameraPlacementRigWindow : EditorWindow
         }
 
         return fallback;
+    }
+
+    private bool TryFindInnerEdgeOnRight(Vector3 groundPointBelowCamera, Vector3 rightDirection, out Vector3 innerEdgePoint)
+    {
+        innerEdgePoint = groundPointBelowCamera;
+        Vector3 rayOrigin = groundPointBelowCamera + Vector3.up * WallRayHeight;
+        Ray wallRay = new Ray(rayOrigin, rightDirection.normalized);
+
+        if (!TryRaycastObject(wallsObject, wallRay, RaycastDistance, out RaycastHit wallHit))
+        {
+            return false;
+        }
+
+        innerEdgePoint = wallHit.point;
+        if (groundObject != null)
+        {
+            Ray groundRay = new Ray(wallHit.point + Vector3.up * RaycastStartHeight, Vector3.down);
+            if (TryRaycastObject(groundObject, groundRay, RaycastStartHeight + RaycastDistance, out RaycastHit groundHit))
+            {
+                innerEdgePoint = groundHit.point;
+            }
+        }
+
+        return true;
     }
 
     private static bool TryRaycastObject(GameObject target, Ray ray, float distance, out RaycastHit closestHit)
@@ -227,5 +313,28 @@ public class CameraPlacementRigWindow : EditorWindow
         }
 
         return rigObject.transform;
+    }
+
+    private static Vector3 NormalizeEuler(Vector3 eulerAngles)
+    {
+        return new Vector3(
+            NormalizeAngle(eulerAngles.x),
+            NormalizeAngle(eulerAngles.y),
+            NormalizeAngle(eulerAngles.z));
+    }
+
+    private static float NormalizeAngle(float angle)
+    {
+        while (angle > 180f)
+        {
+            angle -= 360f;
+        }
+
+        while (angle < -180f)
+        {
+            angle += 360f;
+        }
+
+        return angle;
     }
 }
