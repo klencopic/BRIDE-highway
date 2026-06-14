@@ -6,6 +6,8 @@ public class CameraPlacementRigWindow : EditorWindow
     private const string DefaultRigName = "CameraPlacementRig";
     private const string DefaultGroundObjectName = "colmesh_ground";
     private const string DefaultWallsObjectName = "colmesh_walls";
+    private const float RaycastStartHeight = 10f;
+    private const float RaycastDistance = 80f;
     private static readonly Vector2 WindowSize = new Vector2(560f, 380f);
     private const float FieldLabelWidth = 220f;
 
@@ -152,8 +154,8 @@ public class CameraPlacementRigWindow : EditorWindow
     {
         Transform rig = GetOrCreateRig();
         Undo.RecordObject(rig, "Update Camera Placement Rig");
-        Vector3 cameraPosition = targetCamera.transform.position;
-        rig.position = new Vector3(cameraPosition.x, 0f, cameraPosition.z);
+        Vector3 groundPointBelowCamera = GetGroundPointBelowCamera();
+        rig.position = new Vector3(groundPointBelowCamera.x, 0f, groundPointBelowCamera.z);
         rig.rotation = CalculateHighwayRotation();
         rig.localScale = Vector3.one;
         placementRig = rig;
@@ -169,6 +171,45 @@ public class CameraPlacementRigWindow : EditorWindow
         }
 
         return Quaternion.LookRotation(roadForward.normalized, Vector3.up);
+    }
+
+    private Vector3 GetGroundPointBelowCamera()
+    {
+        Vector3 cameraPosition = targetCamera.transform.position;
+        Vector3 fallback = new Vector3(cameraPosition.x, 0f, cameraPosition.z);
+
+        if (groundObject == null)
+        {
+            return fallback;
+        }
+
+        Ray ray = new Ray(cameraPosition + Vector3.up * RaycastStartHeight, Vector3.down);
+        if (TryRaycastObject(groundObject, ray, RaycastStartHeight + RaycastDistance, out RaycastHit hit))
+        {
+            return hit.point;
+        }
+
+        return fallback;
+    }
+
+    private static bool TryRaycastObject(GameObject target, Ray ray, float distance, out RaycastHit closestHit)
+    {
+        closestHit = default;
+        Collider[] colliders = target.GetComponentsInChildren<Collider>();
+        float closestDistance = float.PositiveInfinity;
+        bool foundHit = false;
+
+        foreach (Collider collider in colliders)
+        {
+            if (collider.Raycast(ray, out RaycastHit hit, distance) && hit.distance < closestDistance)
+            {
+                closestDistance = hit.distance;
+                closestHit = hit;
+                foundHit = true;
+            }
+        }
+
+        return foundHit;
     }
 
     private Transform GetOrCreateRig()
