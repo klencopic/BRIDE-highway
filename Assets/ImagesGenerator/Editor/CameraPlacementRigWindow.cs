@@ -20,6 +20,7 @@ public class CameraPlacementRigWindow : EditorWindow
     [SerializeField] private GameObject wallsObject;
     [SerializeField] private float cameraDistanceFromRig;
     [SerializeField] private float cameraDistanceFromGround;
+    [SerializeField] private float cameraLateralSign = -1f;
     [SerializeField] private Vector3 cameraRotationRelativeToRig;
 
     private GUIStyle titleStyle;
@@ -210,14 +211,53 @@ public class CameraPlacementRigWindow : EditorWindow
         }
 
         EditorGUILayout.LabelField("Camera Values", sectionStyle);
-        EditorGUILayout.LabelField("Distance From Inner Highway Edge: " + cameraDistanceFromRig.ToString("0.###"), labelStyle);
-        EditorGUILayout.LabelField("Distance From Ground: " + cameraDistanceFromGround.ToString("0.###"), labelStyle);
-        EditorGUILayout.LabelField(
-            "Rotation Relative To Highway Direction: "
-            + "X " + cameraRotationRelativeToRig.x.ToString("0.##")
-            + ", Y " + cameraRotationRelativeToRig.y.ToString("0.##")
-            + ", Z " + cameraRotationRelativeToRig.z.ToString("0.##"),
-            labelStyle);
+        cameraDistanceFromRig = DrawFloatControl("Distance From Inner Highway Edge", cameraDistanceFromRig);
+        cameraDistanceFromGround = DrawFloatControl("Distance From Ground", cameraDistanceFromGround);
+        cameraRotationRelativeToRig = DrawVector3Control("Rotation Relative To Highway Direction", cameraRotationRelativeToRig);
+
+        using (new EditorGUI.DisabledScope(cameraDistanceFromRig < 0f))
+        {
+            if (GUILayout.Button("Apply Camera Values", GUILayout.Height(36)))
+            {
+                ApplyCameraValues();
+            }
+        }
+    }
+
+    private float DrawFloatControl(string label, float value)
+    {
+        EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.LabelField(label, labelStyle, GUILayout.Width(270f));
+        float newValue = EditorGUILayout.FloatField(value);
+        EditorGUILayout.EndHorizontal();
+        return newValue;
+    }
+
+    private Vector3 DrawVector3Control(string label, Vector3 value)
+    {
+        EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.LabelField(label, labelStyle, GUILayout.Width(270f));
+        Vector3 newValue = EditorGUILayout.Vector3Field(GUIContent.none, value);
+        EditorGUILayout.EndHorizontal();
+        return newValue;
+    }
+
+    private void ApplyCameraValues()
+    {
+        Vector3 currentLocalPosition = placementRig.InverseTransformPoint(targetCamera.transform.position);
+        if (Mathf.Abs(currentLocalPosition.x) > 0.0001f)
+        {
+            cameraLateralSign = Mathf.Sign(currentLocalPosition.x);
+        }
+
+        Vector3 newLocalPosition = new Vector3(
+            cameraLateralSign * Mathf.Abs(cameraDistanceFromRig),
+            cameraDistanceFromGround,
+            currentLocalPosition.z);
+
+        Undo.RecordObject(targetCamera.transform, "Apply Camera Values");
+        targetCamera.transform.position = placementRig.TransformPoint(newLocalPosition);
+        targetCamera.transform.rotation = placementRig.rotation * Quaternion.Euler(cameraRotationRelativeToRig);
     }
 
     private void SyncCameraValuesFromCurrentCamera()
@@ -230,6 +270,11 @@ public class CameraPlacementRigWindow : EditorWindow
         Vector3 localCameraPosition = placementRig.InverseTransformPoint(targetCamera.transform.position);
         cameraDistanceFromRig = Mathf.Abs(localCameraPosition.x);
         cameraDistanceFromGround = localCameraPosition.y;
+
+        if (Mathf.Abs(localCameraPosition.x) > 0.0001f)
+        {
+            cameraLateralSign = Mathf.Sign(localCameraPosition.x);
+        }
 
         Quaternion relativeRotation = Quaternion.Inverse(placementRig.rotation) * targetCamera.transform.rotation;
         cameraRotationRelativeToRig = NormalizeEuler(relativeRotation.eulerAngles);

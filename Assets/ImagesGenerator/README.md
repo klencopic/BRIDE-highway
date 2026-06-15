@@ -9,6 +9,12 @@ Open it from:
 Tools > Open Images Generator
 ```
 
+Camera placement is available from:
+
+```text
+Tools > Camera Placement
+```
+
 ## Usage
 
 1. Open the scene that contains the camera and truck.
@@ -44,3 +50,11 @@ point when present.
 
 The selected truck object's `Transform.position` is still written as
 `truckPosition`, but it is only the Unity world position/pivot of that object.
+
+## Camera Placement
+
+The camera placement tool uses two highway-parallel reference objects,
+`colmesh_ground`, and `colmesh_walls` to calculate camera distance from the
+inner highway edge, camera height above ground, and camera rotation relative to
+the highway direction. Edit those values and click `Apply Camera Values` to
+move the selected camera.
