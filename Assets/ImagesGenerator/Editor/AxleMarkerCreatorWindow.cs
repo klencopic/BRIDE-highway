@@ -114,20 +114,23 @@ public class AxleMarkerCreatorWindow : EditorWindow
 
     private Transform CreateOrUpdateMarker(Transform referencePoints, string newMarkerName, Vector3 markerPosition)
     {
+        Vector3 localMarkerPosition = referencePoints.InverseTransformPoint(markerPosition);
+        localMarkerPosition.y = 0f;
+
         Transform existingMarker = referencePoints.Find(newMarkerName);
         if (existingMarker != null)
         {
             Undo.RecordObject(existingMarker, "Update Axle Ground Marker");
-            existingMarker.position = markerPosition;
-            existingMarker.rotation = truckRoot.rotation;
+            existingMarker.localPosition = localMarkerPosition;
+            existingMarker.localRotation = Quaternion.identity;
             return existingMarker;
         }
 
         GameObject marker = new GameObject(newMarkerName);
         Undo.RegisterCreatedObjectUndo(marker, "Create Axle Ground Marker");
         marker.transform.SetParent(referencePoints, false);
-        marker.transform.position = markerPosition;
-        marker.transform.rotation = truckRoot.rotation;
+        marker.transform.localPosition = localMarkerPosition;
+        marker.transform.localRotation = Quaternion.identity;
         return marker.transform;
     }
 
@@ -136,6 +139,7 @@ public class AxleMarkerCreatorWindow : EditorWindow
         Transform existing = truckRoot.Find(ReferencePointsContainerName);
         if (existing != null)
         {
+            AlignReferencePointsToRoadPlane(existing);
             return existing;
         }
 
@@ -145,7 +149,20 @@ public class AxleMarkerCreatorWindow : EditorWindow
         container.transform.localPosition = Vector3.zero;
         container.transform.localRotation = Quaternion.identity;
         container.transform.localScale = Vector3.one;
+        AlignReferencePointsToRoadPlane(container.transform);
         return container.transform;
+    }
+
+    private void AlignReferencePointsToRoadPlane(Transform referencePoints)
+    {
+        Vector3 localRoadPoint = truckRoot.InverseTransformPoint(new Vector3(truckRoot.position.x, 0f, truckRoot.position.z));
+        Vector3 localPosition = referencePoints.localPosition;
+        localPosition.y = localRoadPoint.y;
+
+        Undo.RecordObject(referencePoints, "Align Reference Points To Road Plane");
+        referencePoints.localPosition = localPosition;
+        referencePoints.localRotation = Quaternion.identity;
+        referencePoints.localScale = Vector3.one;
     }
 
     private void DrawRoadStatus()
