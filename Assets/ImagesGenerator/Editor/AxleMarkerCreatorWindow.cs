@@ -4,14 +4,10 @@ using UnityEngine;
 public class AxleMarkerCreatorWindow : EditorWindow
 {
     private const string ReferencePointsContainerName = "ReferencePoints";
-    private const string DefaultRoadObjectName = "colmesh_ground";
-    private const float RaycastStartHeight = 5f;
-    private const float RaycastDistance = 25f;
     private static readonly Vector2 WindowSize = new Vector2(520f, 280f);
     private const float FieldLabelWidth = 160f;
 
     [SerializeField] private Transform truckRoot;
-    [SerializeField] private GameObject roadObject;
 
     private GUIStyle titleStyle;
     private GUIStyle instructionStyle;
@@ -33,8 +29,6 @@ public class AxleMarkerCreatorWindow : EditorWindow
         {
             truckRoot = Selection.activeTransform;
         }
-
-        AutoAssignRoadObject();
     }
 
     private void OnGUI()
@@ -52,8 +46,6 @@ public class AxleMarkerCreatorWindow : EditorWindow
         truckRoot = (Transform)EditorGUILayout.ObjectField("Truck Root", truckRoot, typeof(Transform), true);
         EditorGUIUtility.labelWidth = 0f;
 
-        AutoAssignRoadObject();
-        DrawRoadStatus();
         DrawDetectedAxles();
 
         EditorGUILayout.Space(12f);
@@ -61,7 +53,7 @@ public class AxleMarkerCreatorWindow : EditorWindow
         {
             if (GUILayout.Button("Generate Axle Markers", buttonStyle, GUILayout.Height(42)))
             {
-                CreateMarkersForAllAxles();
+                CreateAxleMarkers();
             }
         }
 
@@ -71,7 +63,7 @@ public class AxleMarkerCreatorWindow : EditorWindow
         }
     }
 
-    private void CreateMarkersForAllAxles()
+    private void CreateAxleMarkers()
     {
         Transform[] axles = FindAxleTransforms();
         Transform[] steeringWheels = FindSteeringWheelPair();
@@ -165,15 +157,6 @@ public class AxleMarkerCreatorWindow : EditorWindow
         referencePoints.localScale = Vector3.one;
     }
 
-    private void DrawRoadStatus()
-    {
-        string roadStatus = roadObject == null
-            ? "Road: colmesh_ground not found. The tool will use bounds as fallback."
-            : "Road: " + roadObject.name + " collider will be used.";
-
-        EditorGUILayout.LabelField(roadStatus, instructionStyle);
-    }
-
     private void DrawDetectedAxles()
     {
         if (truckRoot == null)
@@ -238,139 +221,18 @@ public class AxleMarkerCreatorWindow : EditorWindow
         };
     }
 
-    private void AutoAssignRoadObject()
-    {
-        if (roadObject != null)
-        {
-            return;
-        }
-
-        GameObject exactMatch = GameObject.Find(DefaultRoadObjectName);
-        if (exactMatch != null && exactMatch.GetComponentInChildren<Collider>() != null)
-        {
-            roadObject = exactMatch;
-            return;
-        }
-
-        foreach (GameObject sceneObject in Resources.FindObjectsOfTypeAll<GameObject>())
-        {
-            if (sceneObject.name == DefaultRoadObjectName
-                && sceneObject.scene.IsValid()
-                && sceneObject.GetComponentInChildren<Collider>() != null)
-            {
-                roadObject = sceneObject;
-                return;
-            }
-        }
-    }
-
     private Vector3 CalculateWheelMarkerPosition(Transform firstWheel, Transform secondWheel)
     {
         Vector3 midpoint = (firstWheel.position + secondWheel.position) * 0.5f;
-
-        if (TryProjectToRoad(midpoint, out Vector3 roadPoint))
-        {
-            return ForceRoadPlaneY(roadPoint);
-        }
-
-        if (TryGetWheelBottomY(firstWheel, secondWheel, out float bottomY))
-        {
-            midpoint.y = bottomY;
-        }
-
-        return ForceRoadPlaneY(midpoint);
+        midpoint.y = 0f;
+        return midpoint;
     }
 
     private Vector3 CalculateAxleMarkerPosition(Transform axle)
     {
         Vector3 axlePosition = axle.position;
-
-        if (TryProjectToRoad(axlePosition, out Vector3 roadPoint))
-        {
-            return ForceRoadPlaneY(roadPoint);
-        }
-
-        if (TryGetTruckBottomY(out float bottomY))
-        {
-            axlePosition.y = bottomY;
-        }
-
-        return ForceRoadPlaneY(axlePosition);
-    }
-
-    private static Vector3 ForceRoadPlaneY(Vector3 position)
-    {
-        position.y = 0f;
-        return position;
-    }
-
-    private bool TryProjectToRoad(Vector3 midpoint, out Vector3 roadPoint)
-    {
-        roadPoint = midpoint;
-
-        if (roadObject == null)
-        {
-            return false;
-        }
-
-        Collider[] roadColliders = roadObject.GetComponentsInChildren<Collider>();
-        if (roadColliders.Length == 0)
-        {
-            return false;
-        }
-
-        Ray ray = new Ray(midpoint + Vector3.up * RaycastStartHeight, Vector3.down);
-        float closestDistance = float.PositiveInfinity;
-        bool foundHit = false;
-
-        foreach (Collider roadCollider in roadColliders)
-        {
-            if (roadCollider.Raycast(ray, out RaycastHit hit, RaycastStartHeight + RaycastDistance)
-                && hit.distance < closestDistance)
-            {
-                closestDistance = hit.distance;
-                roadPoint = hit.point;
-                foundHit = true;
-            }
-        }
-
-        return foundHit;
-    }
-
-    private static bool TryGetWheelBottomY(Transform firstWheel, Transform secondWheel, out float bottomY)
-    {
-        bottomY = float.PositiveInfinity;
-        bool foundBounds = false;
-
-        foundBounds |= TryIncludeBounds(firstWheel, ref bottomY);
-        foundBounds |= TryIncludeBounds(secondWheel, ref bottomY);
-
-        return foundBounds;
-    }
-
-    private bool TryGetTruckBottomY(out float bottomY)
-    {
-        bottomY = float.PositiveInfinity;
-        return TryIncludeBounds(truckRoot, ref bottomY);
-    }
-
-    private static bool TryIncludeBounds(Transform target, ref float bottomY)
-    {
-        bool foundBounds = false;
-
-        foreach (Renderer renderer in target.GetComponentsInChildren<Renderer>())
-        {
-            bottomY = Mathf.Min(bottomY, renderer.bounds.min.y);
-            foundBounds = true;
-        }
-
-        foreach (Collider collider in target.GetComponentsInChildren<Collider>())
-        {
-            bottomY = Mathf.Min(bottomY, collider.bounds.min.y);
-            foundBounds = true;
-        }
-
-        return foundBounds;
+        axlePosition.y = 0f;
+        return axlePosition;
     }
 
     private static string FormatPosition(Vector3 position)
