@@ -173,18 +173,21 @@ public class CameraPlacementRigWindow : EditorWindow
         Vector3 groundPointBelowCamera = GetGroundPointBelowCamera();
         Quaternion rigRotation = CalculateHighwayRotation();
 
-        if (!TryFindInnerEdgeOnRight(groundPointBelowCamera, rigRotation * Vector3.right, out Vector3 innerEdgePoint))
+        // The rig has a mirrored local X axis, so its positive X direction is
+        // the rotation's left direction in world space.
+        Vector3 rigPositiveX = rigRotation * Vector3.left;
+        if (!TryFindInnerEdge(groundPointBelowCamera, rigPositiveX, out Vector3 innerEdgePoint))
         {
             EditorUtility.DisplayDialog(
                 "Inner Edge Not Found",
-                "Could not raycast from the camera line to colmesh_walls on the right side.",
+                "Could not raycast from the camera line along the rig's positive X axis to colmesh_walls.",
                 "OK");
             return;
         }
 
         rig.position = new Vector3(innerEdgePoint.x, 0f, innerEdgePoint.z);
         rig.rotation = rigRotation;
-        rig.localScale = Vector3.one;
+        rig.localScale = new Vector3(-1f, 1f, 1f);
         placementRig = rig;
 
         SyncCameraValuesFromCurrentCamera();
@@ -299,11 +302,11 @@ public class CameraPlacementRigWindow : EditorWindow
         return fallback;
     }
 
-    private bool TryFindInnerEdgeOnRight(Vector3 groundPointBelowCamera, Vector3 rightDirection, out Vector3 innerEdgePoint)
+    private bool TryFindInnerEdge(Vector3 groundPointBelowCamera, Vector3 edgeDirection, out Vector3 innerEdgePoint)
     {
         innerEdgePoint = groundPointBelowCamera;
         Vector3 rayOrigin = groundPointBelowCamera + Vector3.up * WallRayHeight;
-        Ray wallRay = new Ray(rayOrigin, rightDirection.normalized);
+        Ray wallRay = new Ray(rayOrigin, edgeDirection.normalized);
 
         if (!TryRaycastObject(wallsObject, wallRay, RaycastDistance, out RaycastHit wallHit))
         {
