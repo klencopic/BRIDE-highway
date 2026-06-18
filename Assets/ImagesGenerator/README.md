@@ -56,5 +56,10 @@ The selected truck object's `Transform.position` is still written as
 The camera placement tool uses two highway-parallel reference objects,
 `colmesh_ground`, and `colmesh_walls` to calculate camera distance from the
 inner highway edge, camera height above ground, and camera rotation relative to
-the highway direction. Edit those values and click `Apply Camera Values` to
-move the selected camera.
+the highway direction. Initialize the reference point at the inner highway
+edge, then move its red Scene-view marker or edit its world position. The tool
+automatically recalculates the camera's signed local X, Y, and Z relative to the
+moved reference point. Edit those values and click `Apply Camera Values` to
+move the selected camera. To aim at a scene object, assign its transform as the
+`Look At Target` and click `Point Camera At Target`; the resulting relative
+rotation is written back into the camera values.

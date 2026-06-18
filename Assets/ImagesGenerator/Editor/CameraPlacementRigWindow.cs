@@ -9,7 +9,7 @@ public class CameraPlacementRigWindow : EditorWindow
     private const float RaycastStartHeight = 10f;
     private const float RaycastDistance = 80f;
     private const float WallRayHeight = 0.25f;
-    private static readonly Vector2 WindowSize = new Vector2(560f, 380f);
+    private static readonly Vector2 WindowSize = new Vector2(600f, 590f);
     private const float FieldLabelWidth = 220f;
 
     [SerializeField] private Camera targetCamera;
@@ -18,10 +18,14 @@ public class CameraPlacementRigWindow : EditorWindow
     [SerializeField] private Transform placementRig;
     [SerializeField] private GameObject groundObject;
     [SerializeField] private GameObject wallsObject;
-    [SerializeField] private float cameraDistanceFromRig;
-    [SerializeField] private float cameraDistanceFromGround;
-    [SerializeField] private float cameraLateralSign = -1f;
+    [SerializeField] private Vector3 cameraPositionRelativeToRig;
     [SerializeField] private Vector3 cameraRotationRelativeToRig;
+    [SerializeField] private Transform cameraLookAtTarget;
+
+    private Vector3 lastRigPosition;
+    private Quaternion lastRigRotation;
+    private Vector3 lastRigScale;
+    private bool hasRigTransformSnapshot;
 
     private GUIStyle titleStyle;
     private GUIStyle instructionStyle;
@@ -45,6 +49,21 @@ public class CameraPlacementRigWindow : EditorWindow
         }
 
         AutoAssignSceneObjects();
+
+        if (placementRig == null)
+        {
+            GameObject existingRig = GameObject.Find(DefaultRigName);
+            if (existingRig != null)
+            {
+                placementRig = existingRig.transform;
+                SyncCameraValuesFromCurrentCamera();
+            }
+        }
+    }
+
+    private void OnInspectorUpdate()
+    {
+        Repaint();
     }
 
     private void OnGUI()
@@ -53,14 +72,20 @@ public class CameraPlacementRigWindow : EditorWindow
 
         EditorGUILayout.LabelField("Camera Placement", titleStyle);
         EditorGUILayout.LabelField(
-            "Select a camera and two highway-parallel reference points. The tool will use them to express camera placement relative to the inner highway edge.",
+            "Initialize a reference point at the inner highway edge, then move it as needed. Camera position is expressed as local X, Y, and Z relative to that point.",
             instructionStyle);
 
         EditorGUILayout.Space(10f);
         EditorGUILayout.LabelField("Inputs", sectionStyle);
 
         EditorGUIUtility.labelWidth = FieldLabelWidth;
-        targetCamera = (Camera)EditorGUILayout.ObjectField("Camera", targetCamera, typeof(Camera), true);
+        EditorGUI.BeginChangeCheck();
+        Camera newTargetCamera = (Camera)EditorGUILayout.ObjectField("Camera", targetCamera, typeof(Camera), true);
+        if (EditorGUI.EndChangeCheck())
+        {
+            targetCamera = newTargetCamera;
+            SyncCameraValuesFromCurrentCamera();
+        }
         roadDirectionPointA = (Transform)EditorGUILayout.ObjectField("Highway Direction A", roadDirectionPointA, typeof(Transform), true);
         roadDirectionPointB = (Transform)EditorGUILayout.ObjectField("Highway Direction B", roadDirectionPointB, typeof(Transform), true);
         groundObject = (GameObject)EditorGUILayout.ObjectField("Ground Object", groundObject, typeof(GameObject), true);
@@ -72,17 +97,44 @@ public class CameraPlacementRigWindow : EditorWindow
         EditorGUILayout.Space(8f);
         DrawInputStatus();
 
-        EditorGUILayout.Space(8f);
+        EditorGUILayout.Space(14f);
+        DrawReferencePointControls();
+
+        SyncCameraValuesIfRigMoved();
+
+        EditorGUILayout.Space(14f);
+        DrawCameraValues();
+    }
+
+    private void DrawReferencePointControls()
+    {
+        EditorGUILayout.LabelField("1. Reference Point", sectionStyle);
+        EditorGUILayout.LabelField(
+            "Initialize at the inner highway edge, then move the red reference marker in the Scene view or edit its world position below.",
+            instructionStyle);
+
         using (new EditorGUI.DisabledScope(!CanCreateOrUpdateRig()))
         {
-            if (GUILayout.Button("Use Current Camera Position", GUILayout.Height(36)))
+            if (GUILayout.Button("Initialize At Inner Highway Edge", GUILayout.Height(36)))
             {
                 UseCurrentCameraPosition();
             }
         }
 
-        EditorGUILayout.Space(14f);
-        DrawCameraValues();
+        if (placementRig == null)
+        {
+            return;
+        }
+
+        EditorGUI.BeginChangeCheck();
+        Vector3 newReferencePosition = DrawVector3Control("Reference Point World Position", placementRig.position);
+        if (EditorGUI.EndChangeCheck())
+        {
+            Undo.RecordObject(placementRig, "Move Camera Reference Point");
+            placementRig.position = newReferencePosition;
+            SyncCameraValuesFromCurrentCamera();
+            SceneView.RepaintAll();
+        }
     }
 
     private bool CanCreateOrUpdateRig()
@@ -213,27 +265,29 @@ public class CameraPlacementRigWindow : EditorWindow
             return;
         }
 
-        EditorGUILayout.LabelField("Camera Values", sectionStyle);
-        cameraDistanceFromRig = DrawFloatControl("Distance From Inner Highway Edge", cameraDistanceFromRig);
-        cameraDistanceFromGround = DrawFloatControl("Distance From Ground", cameraDistanceFromGround);
-        cameraRotationRelativeToRig = DrawVector3Control("Rotation Relative To Highway Direction", cameraRotationRelativeToRig);
+        EditorGUILayout.LabelField("2. Camera Relative To Reference Point", sectionStyle);
+        cameraPositionRelativeToRig = DrawVector3Control("Position", cameraPositionRelativeToRig);
+        cameraRotationRelativeToRig = DrawVector3Control("Rotation", cameraRotationRelativeToRig);
 
-        using (new EditorGUI.DisabledScope(cameraDistanceFromRig < 0f))
+        if (GUILayout.Button("Apply Camera Values", GUILayout.Height(36)))
         {
-            if (GUILayout.Button("Apply Camera Values", GUILayout.Height(36)))
+            ApplyCameraValues();
+        }
+
+        EditorGUILayout.Space(8f);
+        cameraLookAtTarget = (Transform)EditorGUILayout.ObjectField(
+            "Look At Target",
+            cameraLookAtTarget,
+            typeof(Transform),
+            true);
+
+        using (new EditorGUI.DisabledScope(cameraLookAtTarget == null))
+        {
+            if (GUILayout.Button("Point Camera At Target", GUILayout.Height(32)))
             {
-                ApplyCameraValues();
+                PointCameraAtTarget();
             }
         }
-    }
-
-    private float DrawFloatControl(string label, float value)
-    {
-        EditorGUILayout.BeginHorizontal();
-        EditorGUILayout.LabelField(label, labelStyle, GUILayout.Width(270f));
-        float newValue = EditorGUILayout.FloatField(value);
-        EditorGUILayout.EndHorizontal();
-        return newValue;
     }
 
     private Vector3 DrawVector3Control(string label, Vector3 value)
@@ -247,20 +301,32 @@ public class CameraPlacementRigWindow : EditorWindow
 
     private void ApplyCameraValues()
     {
-        Vector3 currentLocalPosition = placementRig.InverseTransformPoint(targetCamera.transform.position);
-        if (Mathf.Abs(currentLocalPosition.x) > 0.0001f)
+        Undo.RecordObject(targetCamera.transform, "Apply Camera Values");
+        targetCamera.transform.position = placementRig.TransformPoint(cameraPositionRelativeToRig);
+        targetCamera.transform.rotation = placementRig.rotation * Quaternion.Euler(cameraRotationRelativeToRig);
+    }
+
+    private void PointCameraAtTarget()
+    {
+        if (targetCamera == null || cameraLookAtTarget == null)
         {
-            cameraLateralSign = Mathf.Sign(currentLocalPosition.x);
+            return;
         }
 
-        Vector3 newLocalPosition = new Vector3(
-            cameraLateralSign * Mathf.Abs(cameraDistanceFromRig),
-            cameraDistanceFromGround,
-            currentLocalPosition.z);
+        Vector3 lookDirection = cameraLookAtTarget.position - targetCamera.transform.position;
+        if (lookDirection.sqrMagnitude < 0.0001f)
+        {
+            EditorUtility.DisplayDialog(
+                "Cannot Point Camera",
+                "The camera and look-at target are at the same position.",
+                "OK");
+            return;
+        }
 
-        Undo.RecordObject(targetCamera.transform, "Apply Camera Values");
-        targetCamera.transform.position = placementRig.TransformPoint(newLocalPosition);
-        targetCamera.transform.rotation = placementRig.rotation * Quaternion.Euler(cameraRotationRelativeToRig);
+        Undo.RecordObject(targetCamera.transform, "Point Camera At Target");
+        targetCamera.transform.rotation = Quaternion.LookRotation(lookDirection.normalized, Vector3.up);
+        SyncCameraValuesFromCurrentCamera();
+        SceneView.RepaintAll();
     }
 
     private void SyncCameraValuesFromCurrentCamera()
@@ -270,17 +336,35 @@ public class CameraPlacementRigWindow : EditorWindow
             return;
         }
 
-        Vector3 localCameraPosition = placementRig.InverseTransformPoint(targetCamera.transform.position);
-        cameraDistanceFromRig = Mathf.Abs(localCameraPosition.x);
-        cameraDistanceFromGround = localCameraPosition.y;
-
-        if (Mathf.Abs(localCameraPosition.x) > 0.0001f)
-        {
-            cameraLateralSign = Mathf.Sign(localCameraPosition.x);
-        }
+        cameraPositionRelativeToRig = placementRig.InverseTransformPoint(targetCamera.transform.position);
 
         Quaternion relativeRotation = Quaternion.Inverse(placementRig.rotation) * targetCamera.transform.rotation;
         cameraRotationRelativeToRig = NormalizeEuler(relativeRotation.eulerAngles);
+        SaveRigTransformSnapshot();
+    }
+
+    private void SyncCameraValuesIfRigMoved()
+    {
+        if (targetCamera == null || placementRig == null)
+        {
+            return;
+        }
+
+        if (!hasRigTransformSnapshot
+            || placementRig.position != lastRigPosition
+            || placementRig.rotation != lastRigRotation
+            || placementRig.localScale != lastRigScale)
+        {
+            SyncCameraValuesFromCurrentCamera();
+        }
+    }
+
+    private void SaveRigTransformSnapshot()
+    {
+        lastRigPosition = placementRig.position;
+        lastRigRotation = placementRig.rotation;
+        lastRigScale = placementRig.localScale;
+        hasRigTransformSnapshot = true;
     }
 
     private Vector3 GetGroundPointBelowCamera()
@@ -384,5 +468,61 @@ public class CameraPlacementRigWindow : EditorWindow
         }
 
         return angle;
+    }
+}
+
+[InitializeOnLoad]
+internal static class CameraPlacementRigSceneMarker
+{
+    private const string RigName = "CameraPlacementRig";
+    private static GUIStyle labelStyle;
+
+    static CameraPlacementRigSceneMarker()
+    {
+        SceneView.duringSceneGui += DrawRigMarker;
+    }
+
+    private static void DrawRigMarker(SceneView sceneView)
+    {
+        GameObject rigObject = GameObject.Find(RigName);
+        if (rigObject == null)
+        {
+            return;
+        }
+
+        Transform rig = rigObject.transform;
+        float handleSize = HandleUtility.GetHandleSize(rig.position);
+        float cubeSize = handleSize * 0.22f;
+
+        Handles.color = new Color(0.9f, 0.05f, 0.05f, 1f);
+        if (Handles.Button(
+            rig.position,
+            rig.rotation,
+            cubeSize,
+            cubeSize * 1.4f,
+            Handles.CubeHandleCap))
+        {
+            Selection.activeTransform = rig;
+            EditorGUIUtility.PingObject(rigObject);
+        }
+
+        EnsureLabelStyle();
+        Vector3 labelPosition = rig.position + sceneView.camera.transform.up * (handleSize * 0.32f);
+        Handles.Label(labelPosition, "REFERENCE POINT", labelStyle);
+    }
+
+    private static void EnsureLabelStyle()
+    {
+        if (labelStyle != null)
+        {
+            return;
+        }
+
+        labelStyle = new GUIStyle(EditorStyles.boldLabel)
+        {
+            fontSize = 22,
+            alignment = TextAnchor.MiddleCenter
+        };
+        labelStyle.normal.textColor = new Color(1f, 0.12f, 0.12f, 1f);
     }
 }
