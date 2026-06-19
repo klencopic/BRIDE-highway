@@ -20,12 +20,14 @@ Tools > Camera Placement
 1. Open the scene that contains the camera and truck.
 2. Drag the camera from the Hierarchy window into the `Camera` field.
 3. Drag the truck object from the Hierarchy window into the `Truck` field. 
-4. Move the truck to the first position and click `Use Truck Position` next to
+4. Assign `CameraPlacementRig` as the `Metadata Reference Point` (it is found
+   automatically when present).
+5. Move the truck to the first position and click `Use Truck Position` next to
    `Start Position`.
-5. Move the truck to the last position and click `Use Truck Position` next to
+6. Move the truck to the last position and click `Use Truck Position` next to
    `End Position`.
-6. Set image count, resolution, and output directory.
-7. Click `Generate Images`.
+7. Set image count, resolution, and output directory.
+8. Click `Generate Images`.
 
 The truck is restored to its original transform from before image generation.
 
@@ -44,12 +46,11 @@ ImagesGeneratorOutput/
 
 ## Position Reference
 
-Generated metadata includes axle ground markers from the selected truck's
-`ReferencePoints` child. `FrontAxleGroundCenter` is the primary truck reference
-point when present.
-
-The selected truck object's `Transform.position` is still written as
-`truckPosition`, but it is only the Unity world position/pivot of that object.
+All positions and rotations in `run_config.json` and `metadata.json` are written
+in the local coordinate frame of the selected `Metadata Reference Point`.
+This includes movement endpoints, truck pose, camera pose, and axle ground
+markers from the selected truck's `ReferencePoints` child.
+`FrontAxleGroundCenter` is the primary truck reference point when present.
 
 ## Camera Placement
 

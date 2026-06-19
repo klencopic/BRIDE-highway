@@ -8,13 +8,14 @@ using UnityEngine;
 public class ImagesGeneratorWindow : EditorWindow
 {
     private const string DefaultOutputDirectory = "ImagesGeneratorOutput";
-    private const string CoordinateReferenceFrame = "Camera local coordinate frame";
+    private const string DefaultMetadataReferencePointName = "CameraPlacementRig";
     private const string PositionReference = "Axle ground markers under Truck/ReferencePoints; FrontAxleGroundCenter is the primary truck reference point";
     private const string ReferencePointsContainerName = "ReferencePoints";
-    private static readonly Vector2 WindowSize = new Vector2(560f, 360f);
+    private static readonly Vector2 WindowSize = new Vector2(560f, 390f);
 
     [SerializeField] private Camera captureCamera;
     [SerializeField] private GameObject truck;
+    [SerializeField] private Transform metadataReferencePoint;
     [SerializeField] private Vector3 startPosition;
     [SerializeField] private Vector3 endPosition;
     [SerializeField] private int imageCount = 10;
@@ -37,6 +38,18 @@ public class ImagesGeneratorWindow : EditorWindow
         window.ShowUtility();
     }
 
+    private void OnEnable()
+    {
+        if (metadataReferencePoint == null)
+        {
+            GameObject referencePointObject = GameObject.Find(DefaultMetadataReferencePointName);
+            if (referencePointObject != null)
+            {
+                metadataReferencePoint = referencePointObject.transform;
+            }
+        }
+    }
+
     private void OnGUI()
     {
         EditorGUILayout.LabelField("Images Generator", EditorStyles.boldLabel);
@@ -46,6 +59,11 @@ public class ImagesGeneratorWindow : EditorWindow
 
         captureCamera = (Camera)EditorGUILayout.ObjectField("Camera", captureCamera, typeof(Camera), true);
         truck = (GameObject)EditorGUILayout.ObjectField("Truck", truck, typeof(GameObject), true);
+        metadataReferencePoint = (Transform)EditorGUILayout.ObjectField(
+            "Metadata Reference Point",
+            metadataReferencePoint,
+            typeof(Transform),
+            true);
 
         EditorGUILayout.Space();
         DrawPositionRangeFields();
@@ -136,6 +154,7 @@ public class ImagesGeneratorWindow : EditorWindow
     {
         return captureCamera != null
             && truck != null
+            && metadataReferencePoint != null
             && hasStartPosition
             && hasEndPosition
             && imageCount > 0
@@ -282,10 +301,11 @@ public class ImagesGeneratorWindow : EditorWindow
             imageCount = imageCount,
             imageWidth = imageWidth,
             imageHeight = imageHeight,
-            startPosition = SerializableVector3.From(startPosition),
-            endPosition = SerializableVector3.From(endPosition),
+            referencePoint = metadataReferencePoint.name,
+            startPosition = SerializableVector3.From(ToReferencePointPosition(startPosition)),
+            endPosition = SerializableVector3.From(ToReferencePointPosition(endPosition)),
             positionReference = PositionReference,
-            coordinateReferenceFrame = CoordinateReferenceFrame,
+            coordinateReferenceFrame = GetCoordinateReferenceFrameDescription(),
             lighting = CreateLightingMetadata()
         };
     }
@@ -298,17 +318,16 @@ public class ImagesGeneratorWindow : EditorWindow
             imageIndex = imageIndex,
             camera = captureCamera.name,
             truck = truck.name,
-            truckPosition = SerializableVector3.From(truck.transform.position),
-            truckPositionCameraFrame = SerializableVector3.From(captureCamera.transform.InverseTransformPoint(truck.transform.position)),
-            truckRotationEuler = SerializableVector3.From(truck.transform.eulerAngles),
+            truckPosition = SerializableVector3.From(ToReferencePointPosition(truck.transform.position)),
+            truckRotationEuler = SerializableVector3.From(ToReferencePointRotation(truck.transform.rotation)),
             normalizedPositionAlongRange = normalizedPosition,
-            cameraPosition = SerializableVector3.From(captureCamera.transform.position),
-            cameraRotationEuler = SerializableVector3.From(captureCamera.transform.eulerAngles),
+            cameraPosition = SerializableVector3.From(ToReferencePointPosition(captureCamera.transform.position)),
+            cameraRotationEuler = SerializableVector3.From(ToReferencePointRotation(captureCamera.transform.rotation)),
             imageWidth = imageWidth,
             imageHeight = imageHeight,
             generatedAt = DateTime.Now.ToString("o", CultureInfo.InvariantCulture),
             positionReference = PositionReference,
-            coordinateReferenceFrame = CoordinateReferenceFrame,
+            coordinateReferenceFrame = GetCoordinateReferenceFrameDescription(),
             lighting = CreateLightingMetadata(),
             axleMarkers = CollectAxleMarkerMetadata()
         };
@@ -324,6 +343,22 @@ public class ImagesGeneratorWindow : EditorWindow
             fog = fogEnabled,
             rain = rainEnabled
         };
+    }
+
+    private Vector3 ToReferencePointPosition(Vector3 worldPosition)
+    {
+        return metadataReferencePoint.InverseTransformPoint(worldPosition);
+    }
+
+    private Vector3 ToReferencePointRotation(Quaternion worldRotation)
+    {
+        Quaternion relativeRotation = Quaternion.Inverse(metadataReferencePoint.rotation) * worldRotation;
+        return NormalizeEuler(relativeRotation.eulerAngles);
+    }
+
+    private string GetCoordinateReferenceFrameDescription()
+    {
+        return "Local coordinate frame of reference point '" + metadataReferencePoint.name + "'";
     }
 
     private string GetAbsoluteOutputDirectory()
@@ -360,8 +395,7 @@ public class ImagesGeneratorWindow : EditorWindow
             axleMarkers.Add(new AxleMarkerMetadata
             {
                 name = marker.name,
-                worldPosition = SerializableVector3.From(marker.position),
-                cameraFramePosition = SerializableVector3.From(captureCamera.transform.InverseTransformPoint(marker.position))
+                position = SerializableVector3.From(ToReferencePointPosition(marker.position))
             });
         }
 
@@ -383,6 +417,7 @@ public class ImagesGeneratorWindow : EditorWindow
         public string scene;
         public string camera;
         public string truck;
+        public string referencePoint;
         public int imageCount;
         public int imageWidth;
         public int imageHeight;
@@ -401,7 +436,6 @@ public class ImagesGeneratorWindow : EditorWindow
         public string camera;
         public string truck;
         public SerializableVector3 truckPosition;
-        public SerializableVector3 truckPositionCameraFrame;
         public SerializableVector3 truckRotationEuler;
         public float normalizedPositionAlongRange;
         public SerializableVector3 cameraPosition;
@@ -427,8 +461,7 @@ public class ImagesGeneratorWindow : EditorWindow
     private class AxleMarkerMetadata
     {
         public string name;
-        public SerializableVector3 worldPosition;
-        public SerializableVector3 cameraFramePosition;
+        public SerializableVector3 position;
     }
 
     private enum TimeOfDay
@@ -453,5 +486,18 @@ public class ImagesGeneratorWindow : EditorWindow
                 z = value.z
             };
         }
+    }
+
+    private static Vector3 NormalizeEuler(Vector3 eulerAngles)
+    {
+        return new Vector3(
+            NormalizeAngle(eulerAngles.x),
+            NormalizeAngle(eulerAngles.y),
+            NormalizeAngle(eulerAngles.z));
+    }
+
+    private static float NormalizeAngle(float angle)
+    {
+        return angle > 180f ? angle - 360f : angle;
     }
 }
