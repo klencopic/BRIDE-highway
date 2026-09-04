@@ -227,7 +227,7 @@ public class CameraPlacementRigWindow : EditorWindow
 
         // The rig has a mirrored local X axis, so its positive X direction is
         // the rotation's left direction in world space.
-        Vector3 rigPositiveX = rigRotation * Vector3.left;
+        Vector3 rigPositiveX = rigRotation * Vector3.right;
         if (!TryFindInnerEdge(groundPointBelowCamera, rigPositiveX, out Vector3 innerEdgePoint))
         {
             EditorUtility.DisplayDialog(
@@ -239,7 +239,7 @@ public class CameraPlacementRigWindow : EditorWindow
 
         rig.position = new Vector3(innerEdgePoint.x, 0f, innerEdgePoint.z);
         rig.rotation = rigRotation;
-        rig.localScale = new Vector3(-1f, 1f, 1f);
+        rig.localScale = Vector3.one;
         placementRig = rig;
 
         SyncCameraValuesFromCurrentCamera();
@@ -302,8 +302,13 @@ public class CameraPlacementRigWindow : EditorWindow
     private void ApplyCameraValues()
     {
         Undo.RecordObject(targetCamera.transform, "Apply Camera Values");
-        targetCamera.transform.position = placementRig.TransformPoint(cameraPositionRelativeToRig);
-        targetCamera.transform.rotation = placementRig.rotation * Quaternion.Euler(cameraRotationRelativeToRig);
+
+        targetCamera.transform.position =
+            placementRig.TransformPoint(cameraPositionRelativeToRig);
+
+        targetCamera.transform.rotation =
+            placementRig.rotation *
+            Quaternion.Euler(-cameraRotationRelativeToRig); //- Required to keep rotation direction consistant with the coordinate system
     }
 
     private void PointCameraAtTarget()
@@ -332,14 +337,19 @@ public class CameraPlacementRigWindow : EditorWindow
     private void SyncCameraValuesFromCurrentCamera()
     {
         if (targetCamera == null || placementRig == null)
-        {
             return;
-        }
 
-        cameraPositionRelativeToRig = placementRig.InverseTransformPoint(targetCamera.transform.position);
+        cameraPositionRelativeToRig =
+            placementRig.InverseTransformPoint(targetCamera.transform.position);
 
-        Quaternion relativeRotation = Quaternion.Inverse(placementRig.rotation) * targetCamera.transform.rotation;
-        cameraRotationRelativeToRig = NormalizeEuler(relativeRotation.eulerAngles);
+        Quaternion relativeRotation =
+            Quaternion.Inverse(placementRig.rotation) *
+            targetCamera.transform.rotation;
+
+        cameraRotationRelativeToRig =
+            -NormalizeEuler(relativeRotation.eulerAngles); //- Required to keep rotation direction consistant with the coordinate system
+        SaveRigTransformSnapshot();
+
         SaveRigTransformSnapshot();
     }
 
