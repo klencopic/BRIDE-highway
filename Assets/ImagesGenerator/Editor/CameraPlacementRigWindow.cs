@@ -72,7 +72,7 @@ public class CameraPlacementRigWindow : EditorWindow
 
         EditorGUILayout.LabelField("Camera Placement", titleStyle);
         EditorGUILayout.LabelField(
-            "Initialize a reference point at the inner highway edge, then move it as needed. Camera position is expressed as local X, Y, and Z relative to that point.",
+            "Initialize a reference point at the outer highway edge, then move it as needed. Camera position is expressed as local X, Y, and Z relative to that point.",
             instructionStyle);
 
         EditorGUILayout.Space(10f);
@@ -110,12 +110,12 @@ public class CameraPlacementRigWindow : EditorWindow
     {
         EditorGUILayout.LabelField("1. Reference Point", sectionStyle);
         EditorGUILayout.LabelField(
-            "Initialize at the inner highway edge, then move the red reference marker in the Scene view or edit its world position below.",
+            "Initialize at the outer highway edge, then move the red reference marker in the Scene view or edit its world position below.",
             instructionStyle);
 
         using (new EditorGUI.DisabledScope(!CanCreateOrUpdateRig()))
         {
-            if (GUILayout.Button("Initialize At Inner Highway Edge", GUILayout.Height(36)))
+            if (GUILayout.Button("Initialize At Outer Highway Edge", GUILayout.Height(36)))
             {
                 UseCurrentCameraPosition();
             }
@@ -228,16 +228,16 @@ public class CameraPlacementRigWindow : EditorWindow
         // The rig has a mirrored local X axis, so its positive X direction is
         // the rotation's left direction in world space.
         Vector3 rigPositiveX = rigRotation * Vector3.right;
-        if (!TryFindInnerEdge(groundPointBelowCamera, rigPositiveX, out Vector3 innerEdgePoint))
+        if (!TryFindOuterEdge(groundPointBelowCamera, rigPositiveX, out Vector3 outerEdgePoint))
         {
             EditorUtility.DisplayDialog(
-                "Inner Edge Not Found",
+                "Outer Edge Not Found",
                 "Could not raycast from the camera line along the rig's positive X axis to colmesh_walls.",
                 "OK");
             return;
         }
 
-        rig.position = new Vector3(innerEdgePoint.x, 0f, innerEdgePoint.z);
+        rig.position = new Vector3(outerEdgePoint.x, 0f, outerEdgePoint.z);
         rig.rotation = rigRotation;
         rig.localScale = Vector3.one;
         placementRig = rig;
@@ -396,9 +396,9 @@ public class CameraPlacementRigWindow : EditorWindow
         return fallback;
     }
 
-    private bool TryFindInnerEdge(Vector3 groundPointBelowCamera, Vector3 edgeDirection, out Vector3 innerEdgePoint)
+    private bool TryFindOuterEdge(Vector3 groundPointBelowCamera, Vector3 edgeDirection, out Vector3 outerEdgePoint)
     {
-        innerEdgePoint = groundPointBelowCamera;
+        outerEdgePoint = groundPointBelowCamera;
         Vector3 rayOrigin = groundPointBelowCamera + Vector3.up * WallRayHeight;
         Ray wallRay = new Ray(rayOrigin, edgeDirection.normalized);
 
@@ -407,13 +407,13 @@ public class CameraPlacementRigWindow : EditorWindow
             return false;
         }
 
-        innerEdgePoint = wallHit.point;
+        outerEdgePoint = wallHit.point;
         if (groundObject != null)
         {
             Ray groundRay = new Ray(wallHit.point + Vector3.up * RaycastStartHeight, Vector3.down);
             if (TryRaycastObject(groundObject, groundRay, RaycastStartHeight + RaycastDistance, out RaycastHit groundHit))
             {
-                innerEdgePoint = groundHit.point;
+                outerEdgePoint = groundHit.point;
             }
         }
 
